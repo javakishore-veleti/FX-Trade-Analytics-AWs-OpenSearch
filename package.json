@@ -1,0 +1,31 @@
+{
+  "name": "fx-trade-analytics-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    
+    "local:docker:up": "bash devops/local/docker-all-up.sh",
+    "local:docker:down": "bash devops/local/docker-all-down.sh",
+    "local:docker:status": "bash devops/local/docker-all-status.sh",
+
+    "local:app:trade": "mvn spring-boot:run -pl middleware/fx-trade-service",
+    "local:app:risk": "mvn spring-boot:run -pl middleware/fx-risk-service",
+    "local:app:indexer": "mvn spring-boot:run -pl middleware/fx-opensearch-indexer",
+
+    "local:app:run-all": "concurrently \"npm run local:app:trade\" \"npm run local:app:risk\" \"npm run local:app:indexer\"",
+
+    "local:ui:admin": "cd portals/admin-portal && npm start",
+    "local:ui:customer": "cd portals/customer-portal && npm start",
+
+    "local:ui:run-all": "concurrently \"npm run local:ui:admin\" \"npm run local:ui:customer\"",
+
+    "local:apps:run-all": "npm run local:docker:up && concurrently \"npm run local:app:run-all\" \"npm run local:ui:run-all\"",
+
+    "local:apps:status-all": "npm run local:docker:status",
+
+    "local:apps:shutdown-all": "npm run local:docker:down"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
