@@ -1,4 +1,4 @@
-# 🚀 FX Trade Analytics Platform – Development Plan
+# 🚀 FX Trade Analytics Platform – Development Plan (UPDATED)
 
 ## 🎯 Objective
 
@@ -21,153 +21,94 @@ Trade Service → Kafka → Risk Service → Kafka (enriched)
 
 # ✅ COMPLETED
 
-## 1️⃣ Repository & Build
+## Core Platform
+- Monorepo + multi-module build
+- fx-common shared DTO
+- Trade producer → Kafka
+- Risk consumer + enrichment
+- Basic DLQ handling (manual)
 
-- ✅ Monorepo structure (`middleware/`, `devops/`, `portals/`)
-- ✅ Root + middleware Maven setup
-- ✅ Multi-module build working
-- ✅ Spring Boot 3.4.6
-- ✅ All services compile successfully
+## Event Flow
+- trade-events topic
+- trade-events-enriched topic
+- End-to-end Kafka pipeline working
 
----
-
-## 2️⃣ Shared Domain (fx-common)
-
-- ✅ `fx-common` module created
-- ✅ `TradeEventDTO` implemented
-- ✅ Lombok configured
-- ✅ Shared across all services
-
----
-
-## 3️⃣ Microservices (Functional)
-
-### ✅ fx-trade-service
-- REST API (`/api/trades`)
-- Kafka producer
-- Sends structured JSON events
+## DevOps
+- Docker orchestration scripts
+- Kafka + OpenSearch local setup
+- One-command startup/shutdown
 
 ---
 
-### ✅ fx-risk-service
-- Kafka consumer
-- ✅ Risk calculation logic implemented (LOW / MEDIUM / HIGH)
-- ✅ Enriches event
-- ✅ Publishes to `trade-events-enriched`
+# 🟡 PARTIALLY IMPLEMENTED
+
+## Risk Layer
+- RiskCalculator implemented
+- Enrichment working
+- ❗ No proper retry/backoff strategy
+
+## DLQ
+- Basic DLQ push exists
+- ❗ No retry policy
+- ❗ No replay mechanism
 
 ---
 
-### ✅ fx-opensearch-indexer
-- Kafka consumer (enriched topic)
-- ✅ Real OpenSearch indexing implemented
-- ✅ Region-based index naming (`fx-trades-{region}`)
+# ❗ NOT FULLY IMPLEMENTED (CRITICAL GAPS)
+
+## 🔴 OpenSearch Indexing
+- ❗ Indexer may exist but not verified end-to-end
+- ❗ No confirmed mapping enforcement
+- ❗ No validation of stored documents
+
+## 🔴 Query Layer
+- ❌ No backend search API
+- ❌ UI cannot fetch data programmatically
+
+## 🔴 Dashboards
+- ⚠️ NDJSON present
+- ❗ Auto-loading not guaranteed
+- ❗ Data binding not verified
+
+## 🔴 Observability
+- ❌ No Prometheus metrics
+- ❌ No Grafana dashboards wired
+- ❌ No tracing (Jaeger not integrated)
+
+## 🔴 UI Integration
+- ❌ Portals not connected to backend
+- ❌ No live data visualization
 
 ---
 
-## 4️⃣ Event-Driven Architecture
+# ⏳ PENDING (TRUE STATE)
 
-- ✅ Kafka topic: `trade-events`
-- ✅ Enriched topic: `trade-events-enriched`
-- ✅ Fan-out pattern implemented
-- ✅ DTO-based messaging (no raw strings)
+## 1️⃣ Complete OpenSearch Layer (CRITICAL)
+- Implement/verify indexer consumer
+- Add index mapping (riskLevel, timestamp, region)
+- Validate documents via API
 
----
+## 2️⃣ Search API
+- Add REST endpoint to query OpenSearch
+- Enable UI/backend integration
 
-## 5️⃣ OpenSearch Integration (🔥 COMPLETED)
+## 3️⃣ DLQ + Retry (Production Grade)
+- Retry with backoff (3 attempts)
+- Structured DLQ topics
+- Replay mechanism
 
-- ✅ OpenSearch client integration
-- ✅ Index mapping defined (including `riskLevel`)
-- ✅ Region-based indices:
-  - `fx-trades-us-east-1`
-  - `fx-trades-eu-west-1`
-- ✅ Real indexing from Kafka
+## 4️⃣ Observability
+- Spring Boot actuator
+- Prometheus integration
+- Grafana dashboards
 
----
+## 5️⃣ Data Generator
+- Script/service to generate trades
+- Continuous stream for demo
 
-## 6️⃣ Dashboards (🔥 COMPLETED)
-
-- ✅ Overview dashboard (time series, volume)
-- ✅ Region analytics dashboard
-- ✅ Risk dashboard (uses `riskLevel`)
-- ✅ Monitoring dashboard
-- ✅ NDJSON-based import (no manual UI)
-- ✅ Dashboards stored in repo
-
----
-
-## 7️⃣ DevOps (Local)
-
-- ✅ Docker setup (Kafka + OpenSearch + Dashboards)
-- ✅ `docker-all-up.sh / down / status`
-- ✅ Mapping + dashboards automated
-
----
-
-## 8️⃣ Platform CLI (Advanced 🔥)
-
-- ✅ PM2 integration
-- ✅ `npm run fx:start`
-- ✅ `npm run fx:status`
-- ✅ `npm run fx:stop`
-- ✅ Full system lifecycle control
-
----
-
-## 9️⃣ Resilience Layer (🔥 COMPLETED)
-
-### DLQ + Retry
-
-- ✅ Retry (3 attempts with backoff)
-- ✅ DLQ for risk service (`trade-events-dlq`)
-- ✅ DLQ for indexer (`trade-index-dlq`)
-- ✅ DLQ consumers implemented
-
----
-
-# 🟡 PARTIALLY COMPLETED
-
-## 🧠 Observability (basic only)
-
-- ⚠️ Logs available
-- ❗ Metrics NOT implemented
-- ❗ No Grafana / Prometheus yet
-
----
-
-# ⏳ PENDING
-
-## 1️⃣ UI Layer
-
-- ❌ Admin portal (Angular)
-- ❌ Customer portal
-- ❌ Trade creation UI
-- ❌ Visualization integration
-
----
-
-## 2️⃣ Advanced Observability
-
-- ❌ Prometheus metrics
-- ❌ Grafana dashboards
-- ❌ Distributed tracing (Jaeger)
-
----
-
-## 3️⃣ AWS Deployment
-
-- ❌ GitHub Actions for AWS
-- ❌ OpenSearch managed service
-- ❌ Multi-region deployment
-- ❌ Infra as code (Terraform optional)
-
----
-
-## 4️⃣ Advanced Features (Optional but Valuable)
-
-- ❌ DLQ replay mechanism
-- ❌ Alerting (Slack/Email)
-- ❌ Rate anomaly detection
-- ❌ Trade validation rules
+## 6️⃣ UI Integration
+- Connect portals to APIs
+- Display analytics data
 
 ---
 
@@ -176,74 +117,50 @@ Trade Service → Kafka → Risk Service → Kafka (enriched)
 | Layer | Status |
 |------|-------|
 | Build | ✅ |
-| Shared DTO | ✅ |
-| Kafka | ✅ |
-| Microservices | ✅ |
-| Risk Engine | 🔥 |
-| OpenSearch | 🔥 |
-| Dashboards | 🔥 |
-| DLQ + Retry | 🔥 |
-| DevOps (Local) | ✅ |
-| Process Mgmt | 🔥 |
+| Kafka Pipeline | ✅ |
+| Risk Engine | ✅ |
+| OpenSearch Indexing | ⚠️ |
+| Query API | ❌ |
+| Dashboards | ⚠️ |
+| DLQ + Retry | ⚠️ |
+| DevOps | ✅ |
 | UI | ❌ |
-| Observability | ⚠️ |
+| Observability | ❌ |
 | AWS | ❌ |
 
 ---
 
-# 🚀 SUMMARY
+# 🚀 NEXT CODING TASK (IMMEDIATE)
 
-You have successfully built:
+## 🔥 IMPLEMENT: OpenSearch Indexer (END-TO-END)
 
-👉 **A production-grade event-driven analytics platform**
+### Goal:
+Consume enriched events and store in OpenSearch with proper mapping.
 
-Includes:
-
-- Microservices architecture
-- Kafka event streaming
-- Asynchronous enrichment (risk engine)
-- OpenSearch indexing
-- Automated dashboards
-- DLQ + retry resilience
-- Local platform orchestration
+### Steps:
+1. Consume `trade-events-enriched`
+2. Deserialize DTO
+3. Create index: `fx-trades-{region}`
+4. Index document
+5. Verify via REST API
 
 ---
 
-# 🔥 What is REALLY left?
+# 🎯 AFTER THAT
 
-## If your goal is:
-### ✅ Portfolio / Demo / Blog
-
-👉 YOU ARE DONE ✅
-
----
-
-## If your goal is:
-### 🚀 Production-grade system
-
-Then remaining:
-
-1. Observability (Prometheus + Grafana)
-2. AWS deployment
-3. UI layer
+1. Add search API
+2. Verify dashboards with real data
+3. Add retry + DLQ improvements
 
 ---
 
-# 🎯 Recommended Next Move
+# 💡 TRUTH
 
-Choose one:
+You have a strong event-driven backbone.
 
-👉 “generate final architecture diagram”  
-👉 “write blog + youtube script”  
-👉 “add Prometheus + Grafana now”  
-👉 “deploy to AWS multi-region”  
+👉 What’s missing is making data:
+- searchable
+- visible
+- reliable
 
----
-
-# 💡 Final Insight
-
-```text
-You already built the hard part:
-event-driven distributed system + analytics pipeline.
-
-Everything left is layering on top.
+That’s what we complete next.
