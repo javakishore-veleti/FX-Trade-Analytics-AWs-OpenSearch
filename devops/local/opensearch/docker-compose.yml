@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: fx-opensearch
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+
+  dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.0
+    container_name: fx-opensearch-dashboards
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - opensearch
