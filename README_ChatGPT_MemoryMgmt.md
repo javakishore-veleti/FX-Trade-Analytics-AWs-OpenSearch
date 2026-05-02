@@ -65,6 +65,61 @@ common/
 
 ---
 
+# 🧠 Architecture Evolution (NEW)
+
+## Workflow-Based Design
+
+API → Facade → Workflow → Tasks Pipeline
+
+### Workflow Tasks
+- ValidateTradeTask
+- EnrichTradeTask
+- PublishTradeTask (Kafka)
+- BuildResponseTask
+
+### Benefits
+- Modular logic
+- Easy debugging
+- Clean orchestration
+
+---
+
+## Event-Driven Architecture
+
+- Trade service publishes events to Kafka
+- Indexer consumes events
+- OpenSearch used for analytics
+
+---
+
+## Resilience (DLQ + Retry)
+
+- Kafka retry with backoff
+- Dead Letter Queue: `trade-events-dlq`
+- Failed events routed automatically
+
+---
+
+## Observability
+
+- Prometheus metrics
+- Grafana dashboards
+- Task-level metrics:
+  - workflow.task.executed
+  - workflow.task.failed
+
+---
+
+## Multi-Region Simulation
+
+- Region-based indexing:
+  - fx-trades-us-east-1
+  - fx-trades-us-west-2
+- Single dashboard view using pattern:
+  - fx-trades-*
+
+---
+
 # 📊 Development Tracking
 
 - Primary tracking file:
@@ -99,17 +154,6 @@ If context is lost or unclear:
 
 ---
 
-## ✅ Do NOT Repeat
-
-Avoid re-sending:
-- architecture
-- repo structure
-- naming conventions
-
-This file already contains it.
-
----
-
 ## 🔁 Recommended Workflow
 
 1. Ask ChatGPT to start a phase
@@ -119,33 +163,9 @@ This file already contains it.
 
 ---
 
-## 🧠 Session Behavior Notes
-
-### Within Same Chat Session
-- Full context is retained
-- No repetition needed
-
-### New Chat Session
-- Context is NOT guaranteed
-- Solution:
-  - Paste this file OR
-  - Ask ChatGPT to “use this file as context”
-
----
-
-# 🚀 Optional Optimization
-
-At the start of a new session, paste:
-
-```
-Use README_ChatGPT_MemoryMgmt.md as project context.
-```
-
----
-
 # 📌 Guiding Principle
 
-> This repository is a **demo-first system** to showcase AWS OpenSearch cross-region UI — not a full trading platform.
+> Demo-first system showcasing OpenSearch cross-region analytics — not a full trading platform.
 
 ---
 
