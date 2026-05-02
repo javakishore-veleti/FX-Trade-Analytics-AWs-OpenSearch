@@ -1,2 +1,4 @@
-com/jk/fx/trade_mgmt/IndexerApplication.class
 com/jk/fx/trade_mgmt/kafka/TradeIndexerConsumer.class
+com/jk/fx/trade_mgmt/IndexerApplication.class
+com/jk/fx/trade_mgmt/config/OpenSearchConfig.class
+com/jk/fx/trade_mgmt/service/OpenSearchService.class
