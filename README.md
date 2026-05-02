@@ -1,46 +1,46 @@
 # 🚀 FX Trade Analytics Platform (AWS + OpenSearch)
 
-> A production-style distributed system demonstrating **event-driven FX analytics** with Kafka, OpenSearch, and microservices.
+> Build a **real-world distributed system** for FX trade analytics using Kafka, OpenSearch, and Spring Boot microservices.
 
 ---
 
-## 🎬 System Overview
+# 🌍 Why This Project Matters
+
+Modern trading platforms require:
+- Real-time event processing
+- Distributed microservices
+- Cross-region analytics
+- Observability at scale
+
+This project demonstrates **all of the above in one system**.
+
+---
+
+# 🎬 System Flow (End-to-End)
 
 ```mermaid
 flowchart LR
-    A[Trade API] -->|Publish| B[Kafka]
+    A[Trade API] -->|Publish Trade| B[Kafka]
     B --> C[Risk Service]
-    C -->|Enriched Event| B
-    B --> D[OpenSearch Indexer]
+    C -->|Enriched Trade| B
+    B --> D[Indexer]
     D --> E[OpenSearch]
-    E --> F[Dashboards UI]
+    E --> F[Dashboards]
 ```
 
 ---
 
-## 📚 Table of Contents
-
-- Overview
-- Architecture
-- Developer Quick Start
-- Daily Usage
-- System Components
-- Observability
-- Key URLs
-
----
-
-## 🧠 Architecture (Detailed)
+# 🧠 Architecture Deep Dive
 
 ```mermaid
 flowchart TD
     subgraph Microservices
         TS[Trade Service]
         RS[Risk Service]
-        IDX[Indexer Service]
+        IDX[Indexer]
     end
 
-    subgraph Messaging
+    subgraph Streaming
         K[(Kafka / Redpanda)]
     end
 
@@ -49,78 +49,102 @@ flowchart TD
         PG[(Postgres)]
     end
 
-    subgraph Observability
-        PR[Prometheus]
-        GR[Grafana]
-        JG[Jaeger]
-    end
-
     TS --> K
     K --> RS
     RS --> K
     K --> IDX
     IDX --> OS
-
-    TS --> PR
-    RS --> PR
-    IDX --> PR
-
-    PR --> GR
-    TS --> JG
-    RS --> JG
 ```
 
 ---
 
-## ⚡ Developer Quick Start
+# ⚡ Developer Onboarding (First Time)
 
 ```bash
 npm install
 chmod +x devops/local/*.sh
 docker network create fx-trade-analytics-aws-opensearch-network
-npm run local:start
 ```
+
+### 🚀 Start Infra (ONLY ONCE / when needed)
+
+```bash
+npm run local:docker:up
+```
+
+👉 This starts:
+- Kafka
+- OpenSearch
+- Postgres
+- Grafana / Prometheus
+
+👉 **Data is persisted (volumes), so no data loss unless you run cleanup scripts**
 
 ---
 
-## 🔁 Daily Usage
+# 🔁 Daily Developer Workflow
 
-### 🚀 Start everything
+## 🚀 Start Apps (FAST, repeatable)
+
+```bash
+npm run local:app:run-all
+npm run local:ui:run-all
+```
+
+OR
 
 ```bash
 npm run local:start
 ```
 
-### 🔍 Check status
+---
+
+## 🔍 Check status
 
 ```bash
 npm run local:status
 ```
 
-### 🛑 Stop everything
+---
+
+## 🛑 Stop Apps ONLY (recommended daily)
 
 ```bash
 npm run local:stop
 ```
 
+👉 Stops apps + docker cleanly
+
 ---
 
-## 🧱 System Components
+# ⚠️ Important Note on Data
 
-| Component | Description |
-|----------|------------|
-| Trade Service | Ingest FX trades |
+| Command | Data Impact |
+|--------|------------|
+| docker up | ✅ safe |
+| docker down | ✅ safe |
+| docker down -v | ❌ deletes data |
+
+👉 Your setup uses volumes → **data is safe across restarts**
+
+---
+
+# 🧱 System Components
+
+| Component | Role |
+|----------|-----|
+| Trade Service | Accepts trades |
 | Risk Service | Calculates risk |
-| Indexer | Pushes to OpenSearch |
+| Indexer | Sends to OpenSearch |
 | Kafka | Event backbone |
-| OpenSearch | Analytics store |
+| OpenSearch | Analytics engine |
 | Grafana | Metrics dashboards |
 | Prometheus | Metrics collection |
-| Jaeger | Distributed tracing |
+| Jaeger | Tracing |
 
 ---
 
-## 📊 Observability Stack
+# 📊 Observability
 
 ```mermaid
 flowchart LR
@@ -130,7 +154,7 @@ flowchart LR
 
 ---
 
-## 🌐 Key URLs
+# 🌐 Access URLs
 
 | Service | URL |
 |--------|-----|
@@ -139,14 +163,13 @@ flowchart LR
 | Indexer | http://localhost:8082 |
 | OpenSearch | http://localhost:9200 |
 | Dashboards | http://localhost:5601 |
-| Kafka UI | http://localhost:8080 |
 | Grafana | http://localhost:3000 |
 | Prometheus | http://localhost:9090 |
 | Jaeger | http://localhost:16686 |
 
 ---
 
-## 🎯 One Command Control
+# 🎯 One Command Mode
 
 ```bash
 npm run local:start
@@ -156,18 +179,18 @@ npm run local:stop
 
 ---
 
-## 🔥 Highlights
+# 🔥 Highlights
 
-- Event-driven microservices architecture
+- Event-driven microservices
 - Real-time analytics pipeline
-- Multi-service orchestration with one command
-- Production-style observability stack
+- One-command platform control
+- Production-style observability
 
 ---
 
-## 🚀 Next Enhancements
+# 🚀 Next Steps
 
 - AWS multi-region deployment
 - Advanced dashboards
-- Kafka DLQ + replay
-- Authentication + RBAC
+- Kafka DLQ + retry
+- Security (Auth + RBAC)
