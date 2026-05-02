@@ -1,12 +1,11 @@
+
 <project xmlns="http://maven.apache.org/POM/4.0.0">
   <modelVersion>4.0.0</modelVersion>
-
   <parent>
     <groupId>com.jk.fx.trade_mgmt</groupId>
     <artifactId>middleware-parent</artifactId>
     <version>1.0.0</version>
   </parent>
-
   <artifactId>fx-risk-service</artifactId>
 
   <dependencies>
@@ -28,5 +27,4 @@
       </plugin>
     </plugins>
   </build>
-
 </project>

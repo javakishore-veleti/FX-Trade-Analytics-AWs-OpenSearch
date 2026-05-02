@@ -1,5 +1,5 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0">
 
+<project xmlns="http://maven.apache.org/POM/4.0.0">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
@@ -15,9 +15,9 @@
   <packaging>pom</packaging>
 
   <modules>
+    <module>fx-common</module>
     <module>fx-trade-service</module>
     <module>fx-risk-service</module>
     <module>fx-opensearch-indexer</module>
   </modules>
-
 </project>

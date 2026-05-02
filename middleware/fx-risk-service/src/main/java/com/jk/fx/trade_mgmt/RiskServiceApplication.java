@@ -1,10 +1,12 @@
+
 package com.jk.fx.trade_mgmt;
+
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class RiskServiceApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(RiskServiceApplication.class, args);
-    }
+  public static void main(String[] args) {
+    SpringApplication.run(RiskServiceApplication.class, args);
+  }
 }
