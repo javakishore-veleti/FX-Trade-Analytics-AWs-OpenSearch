@@ -14,6 +14,17 @@ Build a **real-time data pipeline** that:
 3. Stores data in OpenSearch
 4. Enables analytics + dashboards
 
+Read the entire repo.
+
+Do NOT add new services.
+
+Focus only on:
+1. Validating Kafka → Risk → Indexer → OpenSearch flow
+2. Fixing OpenSearch indexing and mapping issues
+3. Ensuring data is visible in dashboards
+
+Do changes incrementally and show diffs per file.
+
 ## Why this exists
 This is NOT a CRUD app.
 
