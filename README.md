@@ -1,6 +1,25 @@
 # 🚀 FX Trade Analytics Platform (AWS + OpenSearch)
 
+![Java](https://img.shields.io/badge/Java-17-blue)
+![Spring Boot](https://img.shields.io/badge/SpringBoot-3.x-brightgreen)
+![Kafka](https://img.shields.io/badge/Kafka-Event--Driven-black)
+![OpenSearch](https://img.shields.io/badge/OpenSearch-Analytics-orange)
+![Docker](https://img.shields.io/badge/Docker-Containerized-blue)
+
 > Build a **real-world distributed FX analytics system** powered by Kafka, OpenSearch, and AWS cross-region capabilities.
+
+---
+
+# 📸 Screenshots (Add Your Images Here)
+
+## 🖥️ OpenSearch Dashboards
+![OpenSearch Dashboard](docs/screenshots/opensearch-dashboard.png)
+
+## 📊 Grafana Metrics
+![Grafana Dashboard](docs/screenshots/grafana-dashboard.png)
+
+## 🧠 Kafka UI
+![Kafka UI](docs/screenshots/kafka-ui.png)
 
 ---
 
@@ -61,120 +80,29 @@ flowchart LR
 
 ---
 
-# 🧠 What Each Layer Does
-
-| Layer | Purpose |
-|------|--------|
-| Customer Portal | Submit FX trades |
-| Admin Portal | Monitor trades, risk, analytics |
-| Trade Service | Accept & publish trades |
-| Risk Service | Enrich trades with risk |
-| Indexer | Push data to OpenSearch |
-| Kafka | Event streaming backbone |
-| OpenSearch | Distributed analytics store |
-| OpenSearch UI | Cross-region unified analytics |
-
----
-
-# 🌐 Why Cross-Region OpenSearch Matters
-
-Traditionally:
-- Data had to be replicated
-- Multiple dashboards required
-- Complex routing logic
-
-Now with AWS OpenSearch:
-
-✅ Query across regions in ONE UI  
-✅ No data duplication  
-✅ Lower cost  
-✅ Meets data residency requirements  
-
----
-
-# ⚡ Developer Onboarding (First Time)
-
-```bash
-npm install
-chmod +x devops/local/*.sh
-docker network create fx-trade-analytics-aws-opensearch-network
-```
-
----
-
 # 🔁 Daily Developer Workflow (Recommended)
 
-## 🟢 Step 1 — Start Infra (ONLY when needed)
+## 🟢 Step 1 — Start Infra
 
 ```bash
 npm run local:docker:up
 ```
 
-👉 Run this only:
-- first time
-- after system restart
-- after docker shutdown
-
----
-
-## 🟡 Step 2 — Start Applications (repeatable, daily)
+## 🟡 Step 2 — Start Apps
 
 ```bash
 npm run local:app:run-all
 npm run local:ui:run-all
 ```
 
-👉 Run this:
-- multiple times daily
-- during development
-- after code changes
-
 ---
 
-## 🔍 Check Status
-
-```bash
-npm run local:status
-```
-
----
-
-## 🛑 Stop Everything
-
-```bash
-npm run local:stop
-```
-
----
-
-## ⚡ Quick Mode (Demo / Shortcut)
+# 🎯 One Command Mode
 
 ```bash
 npm run local:start
-```
-
-👉 Starts both infra + apps (use for demos or fresh setup)
-
----
-
-# ⚠️ Data Safety
-
-| Command | Data Impact |
-|--------|------------|
-| docker up | ✅ safe |
-| docker down | ✅ safe |
-| docker down -v | ❌ deletes data |
-
-👉 Your setup uses volumes → **data persists across restarts**
-
----
-
-# 📊 Observability
-
-```mermaid
-flowchart LR
-    Services --> Prometheus --> Grafana
-    Services --> Jaeger
+npm run local:status
+npm run local:stop
 ```
 
 ---
@@ -194,29 +122,10 @@ flowchart LR
 
 ---
 
-# 🎯 One Command Mode
-
-```bash
-npm run local:start
-npm run local:status
-npm run local:stop
-```
-
----
-
 # 🔥 Highlights
 
 - Event-driven microservices
 - Real-time analytics pipeline
 - Cross-region OpenSearch analytics
-- Clean developer workflow (infra vs apps separation)
+- Clean developer workflow
 - Production-style observability
-
----
-
-# 🚀 Next Steps
-
-- AWS deployment (multi-region)
-- Advanced dashboards
-- Kafka DLQ + retry
-- Security (Auth + RBAC)
