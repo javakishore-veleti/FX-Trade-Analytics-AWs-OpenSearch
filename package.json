@@ -11,14 +11,16 @@
     "local:app:risk": "mvn spring-boot:run -pl middleware/fx-risk-service",
     "local:app:indexer": "mvn spring-boot:run -pl middleware/fx-opensearch-indexer",
 
-    "local:app:run-all": "concurrently \"npm run local:app:trade\" \"npm run local:app:risk\" \"npm run local:app:indexer\"",
+    "local:app:run-all": "concurrently -k \"npm:local:app:trade\" \"npm:local:app:risk\" \"npm:local:app:indexer\"",
 
     "local:ui:admin": "cd portals/admin-portal && npm start",
     "local:ui:customer": "cd portals/customer-portal && npm start",
 
-    "local:ui:run-all": "concurrently \"npm run local:ui:admin\" \"npm run local:ui:customer\"",
+    "local:ui:run-all": "concurrently -k \"npm:local:ui:admin\" \"npm:local:ui:customer\"",
 
-    "local:apps:run-all": "npm run local:docker:up && concurrently \"npm run local:app:run-all\" \"npm run local:ui:run-all\"",
+    "local:start": "npm run local:docker:up && concurrently -k \"npm:local:app:run-all\" \"npm:local:ui:run-all\"",
+    "local:stop": "bash devops/local/shutdown-all.sh",
+    "local:status": "bash devops/local/status-all.sh",
 
     "fx:start": "npm run local:docker:up && pm2 start ecosystem.config.js",
     "fx:status": "pm2 list && npm run local:docker:status",

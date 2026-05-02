@@ -1,3 +1,5 @@
+name: fx-trade-analytics-aws-opensearch
+
 version: '3.8'
 
 services:
@@ -8,6 +10,11 @@ services:
     environment:
       - discovery.type=single-node
       - plugins.security.disabled=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     ports:
       - "9200:9200"
       - "9600:9600"
@@ -21,3 +28,8 @@ services:
       - "5601:5601"
     depends_on:
       - opensearch
+
+networks:
+  default:
+    external: true
+    name: fx-trade-analytics-aws-opensearch-network

@@ -1,0 +1,17 @@
+name: fx-trade-analytics-aws-opensearch
+
+version: '3.8'
+
+services:
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: fx-kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+
+networks:
+  default:
+    external: true
+    name: fx-trade-analytics-aws-opensearch-network

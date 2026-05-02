@@ -1,19 +1,21 @@
 #!/bin/bash
 
+set -e
+
 echo "=============================="
 echo "🛑 SHUTTING DOWN FX PLATFORM"
 echo "=============================="
 
 # -----------------------------
-# Kill Spring Boot + UI ports
+# Kill processes by port
 # -----------------------------
 kill_port() {
   PORT=$1
   NAME=$2
 
-  PID=$(lsof -ti:$PORT)
+  PID=$(lsof -ti:$PORT || true)
 
-  if [ ! -z "$PID" ]; then
+  if [ -n "$PID" ]; then
     echo "🔥 Killing $NAME (port $PORT, pid $PID)"
     kill -9 $PID
   else
@@ -23,14 +25,12 @@ kill_port() {
 
 echo ""
 echo "🧠 Stopping Microservices..."
-
 kill_port 8080 "Trade Service"
 kill_port 8081 "Risk Service"
 kill_port 8082 "Indexer Service"
 
 echo ""
 echo "🖥️ Stopping UI..."
-
 kill_port 4200 "Admin Portal"
 kill_port 4201 "Customer Portal"
 

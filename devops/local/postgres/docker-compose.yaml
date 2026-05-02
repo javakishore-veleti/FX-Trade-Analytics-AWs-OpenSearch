@@ -1,8 +1,12 @@
+name: fx-trade-analytics-aws-opensearch
+
 version: '3.8'
 
 services:
+
   postgres:
     image: postgres:15
+    container_name: fx-postgres
     environment:
       POSTGRES_DB: fxdb
       POSTGRES_USER: fxuser
@@ -14,3 +18,8 @@ services:
 
 volumes:
   postgres-data:
+
+networks:
+  default:
+    external: true
+    name: fx-trade-analytics-aws-opensearch-network

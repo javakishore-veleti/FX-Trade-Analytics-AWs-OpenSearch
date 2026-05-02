@@ -1,25 +1,35 @@
+name: fx-trade-analytics-aws-opensearch
+
 version: '3.8'
 
 services:
+
   prometheus:
     image: prom/prometheus
+    container_name: fx-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
 
   grafana:
     image: grafana/grafana
+    container_name: fx-grafana
     ports:
       - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
 
   jaeger:
     image: jaegertracing/all-in-one:1.54
+    container_name: fx-jaeger
     ports:
       - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
 
-  kafka-ui:
-    image: provectuslabs/kafka-ui
-    ports:
-      - "8080:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+networks:
+  default:
+    external: true
+    name: fx-trade-analytics-aws-opensearch-network
