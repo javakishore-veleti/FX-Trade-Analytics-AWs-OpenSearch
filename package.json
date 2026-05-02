@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    
     "local:docker:up": "bash devops/local/docker-all-up.sh",
     "local:docker:down": "bash devops/local/docker-all-down.sh",
     "local:docker:status": "bash devops/local/docker-all-status.sh",
@@ -21,9 +20,9 @@
 
     "local:apps:run-all": "npm run local:docker:up && concurrently \"npm run local:app:run-all\" \"npm run local:ui:run-all\"",
 
-    "local:apps:status-all": "npm run local:docker:status",
-
-    "local:apps:shutdown-all": "npm run local:docker:down"
+    "fx:start": "npm run local:docker:up && pm2 start ecosystem.config.js",
+    "fx:status": "pm2 list && npm run local:docker:status",
+    "fx:stop": "pm2 delete all && npm run local:docker:down"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
