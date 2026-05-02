@@ -6,6 +6,40 @@
 ![OpenSearch](https://img.shields.io/badge/OpenSearch-Analytics-orange)
 ![Docker](https://img.shields.io/badge/Docker-Containerized-blue)
 
+---
+
+# 🎥 Demo (System in Action)
+
+![Demo GIF](docs/screenshots/demo.gif)
+
+👉 Record using:
+- QuickTime (Mac)
+- OBS Studio
+- Loom
+
+---
+
+# 📸 Screenshots
+
+## OpenSearch Dashboards
+![OpenSearch](docs/screenshots/opensearch-dashboard.png)
+
+## Grafana Metrics
+![Grafana](docs/screenshots/grafana-dashboard.png)
+
+## Kafka UI
+![Kafka](docs/screenshots/kafka-ui.png)
+
+---
+
+# 🧠 Architecture Diagram (Editable)
+
+👉 File location:
+docs/architecture/fx-architecture.drawio
+
+👉 Open in:
+https://app.diagrams.net
+
 > Build a **real-world distributed FX analytics system** powered by Kafka, OpenSearch, and AWS cross-region capabilities.
 
 ---
