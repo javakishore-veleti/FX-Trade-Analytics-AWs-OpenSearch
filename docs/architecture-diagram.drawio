@@ -1,0 +1,71 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Overview">
+    <mxGraphModel>
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="FX Trade Simulator" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="160" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="3" value="Kafka" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="260" y="120" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="4" value="OpenSearch Indexer" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="420" y="120" width="180" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="5" value="OpenSearch (Multi-Region)" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="640" y="120" width="200" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="6" edge="1" parent="1" source="2" target="3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="7" edge="1" parent="1" source="3" target="4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="8" edge="1" parent="1" source="4" target="5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Multi-Region">
+    <mxGraphModel>
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="us-east-1" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="3" value="us-west-2" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="100" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="4" value="ap-south-1" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="100" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="5" value="OpenSearch UI (Single View)" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="220" width="200" height="60" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Data Flow">
+    <mxGraphModel>
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="Generate Trades" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="3" value="Publish Events" vertex="1" parent="1">
+          <mxGeometry x="220" y="120" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="4" value="Process & Index" vertex="1" parent="1">
+          <mxGeometry x="400" y="120" width="160" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="5" value="Query Dashboard" vertex="1" parent="1">
+          <mxGeometry x="600" y="120" width="160" height="60" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
