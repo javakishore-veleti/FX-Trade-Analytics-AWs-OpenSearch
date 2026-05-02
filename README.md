@@ -1,60 +1,94 @@
 # 🚀 FX Trade Analytics Platform (AWS + OpenSearch)
 
-> Build a **real-world distributed system** for FX trade analytics using Kafka, OpenSearch, and Spring Boot microservices.
+> Build a **real-world distributed FX analytics system** powered by Kafka, OpenSearch, and AWS cross-region capabilities.
 
 ---
 
-# 🌍 Why This Project Matters
+# 🌍 Core Idea (What makes this project special)
 
-Modern trading platforms require:
-- Real-time event processing
-- Distributed microservices
-- Cross-region analytics
-- Observability at scale
+This project demonstrates how to build a **global analytics platform** using:
 
-This project demonstrates **all of the above in one system**.
+🔥 **AWS OpenSearch Cross-Region UI Access**
+
+- Query data across multiple AWS regions
+- No data replication required
+- No endpoint switching
+- Supports cross-account + cross-region
+- Works with IAM + Identity Center
+
+👉 This enables **centralized analytics on globally distributed trading data** while keeping data local.
 
 ---
 
-# 🎬 System Flow (End-to-End)
+# 🎬 System Overview
 
 ```mermaid
 flowchart LR
-    A[Trade API] -->|Publish Trade| B[Kafka]
-    B --> C[Risk Service]
-    C -->|Enriched Trade| B
-    B --> D[Indexer]
-    D --> E[OpenSearch]
-    E --> F[Dashboards]
-```
+    subgraph Users
+        CUST[Customer Portal]
+        ADMIN[Admin Portal]
+    end
 
----
-
-# 🧠 Architecture Deep Dive
-
-```mermaid
-flowchart TD
-    subgraph Microservices
+    subgraph Backend
         TS[Trade Service]
         RS[Risk Service]
         IDX[Indexer]
     end
 
     subgraph Streaming
-        K[(Kafka / Redpanda)]
+        K[(Kafka)]
     end
 
     subgraph Storage
-        OS[(OpenSearch)]
-        PG[(Postgres)]
+        OS[(OpenSearch - Multi Region)]
     end
+
+    subgraph Analytics
+        UI[OpenSearch UI - Cross Region]
+    end
+
+    CUST -->|Create Trades| TS
+    ADMIN -->|Monitor & Manage| TS
 
     TS --> K
     K --> RS
     RS --> K
     K --> IDX
     IDX --> OS
+
+    OS --> UI
 ```
+
+---
+
+# 🧠 What Each Layer Does
+
+| Layer | Purpose |
+|------|--------|
+| Customer Portal | Submit FX trades |
+| Admin Portal | Monitor trades, risk, analytics |
+| Trade Service | Accept & publish trades |
+| Risk Service | Enrich trades with risk |
+| Indexer | Push data to OpenSearch |
+| Kafka | Event streaming backbone |
+| OpenSearch | Distributed analytics store |
+| OpenSearch UI | Cross-region unified analytics |
+
+---
+
+# 🌐 Why Cross-Region OpenSearch Matters
+
+Traditionally:
+- Data had to be replicated
+- Multiple dashboards required
+- Complex routing logic
+
+Now with AWS OpenSearch:
+
+✅ Query across regions in ONE UI  
+✅ No data duplication  
+✅ Lower cost  
+✅ Meets data residency requirements  
 
 ---
 
@@ -66,25 +100,17 @@ chmod +x devops/local/*.sh
 docker network create fx-trade-analytics-aws-opensearch-network
 ```
 
-### 🚀 Start Infra (ONLY ONCE / when needed)
+---
+
+# 🔁 Daily Workflow (Correct Way)
+
+## 🟢 Start Infra (only when needed)
 
 ```bash
 npm run local:docker:up
 ```
 
-👉 This starts:
-- Kafka
-- OpenSearch
-- Postgres
-- Grafana / Prometheus
-
-👉 **Data is persisted (volumes), so no data loss unless you run cleanup scripts**
-
----
-
-# 🔁 Daily Developer Workflow
-
-## 🚀 Start Apps (FAST, repeatable)
+## 🟡 Start Apps (multiple times daily)
 
 ```bash
 npm run local:app:run-all
@@ -99,7 +125,7 @@ npm run local:start
 
 ---
 
-## 🔍 Check status
+## 🔍 Status
 
 ```bash
 npm run local:status
@@ -107,40 +133,21 @@ npm run local:status
 
 ---
 
-## 🛑 Stop Apps ONLY (recommended daily)
+## 🛑 Stop
 
 ```bash
 npm run local:stop
 ```
 
-👉 Stops apps + docker cleanly
-
 ---
 
-# ⚠️ Important Note on Data
+# ⚠️ Data Safety
 
 | Command | Data Impact |
 |--------|------------|
 | docker up | ✅ safe |
 | docker down | ✅ safe |
 | docker down -v | ❌ deletes data |
-
-👉 Your setup uses volumes → **data is safe across restarts**
-
----
-
-# 🧱 System Components
-
-| Component | Role |
-|----------|-----|
-| Trade Service | Accepts trades |
-| Risk Service | Calculates risk |
-| Indexer | Sends to OpenSearch |
-| Kafka | Event backbone |
-| OpenSearch | Analytics engine |
-| Grafana | Metrics dashboards |
-| Prometheus | Metrics collection |
-| Jaeger | Tracing |
 
 ---
 
@@ -183,14 +190,15 @@ npm run local:stop
 
 - Event-driven microservices
 - Real-time analytics pipeline
-- One-command platform control
+- Cross-region OpenSearch analytics
+- One-command orchestration
 - Production-style observability
 
 ---
 
 # 🚀 Next Steps
 
-- AWS multi-region deployment
+- AWS deployment (multi-region)
 - Advanced dashboards
 - Kafka DLQ + retry
 - Security (Auth + RBAC)
