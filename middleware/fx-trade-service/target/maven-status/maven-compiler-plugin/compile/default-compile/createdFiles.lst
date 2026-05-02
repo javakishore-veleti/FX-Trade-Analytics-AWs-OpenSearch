@@ -1,1 +1,4 @@
+com/jk/fx/trade_mgmt/kafka/TradeProducer.class
 com/jk/fx/trade_mgmt/TradeServiceApplication.class
+com/jk/fx/trade_mgmt/api/TradeController.class
+com/jk/fx/trade_mgmt/service/TradeService.class

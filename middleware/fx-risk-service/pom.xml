@@ -5,12 +5,12 @@
     <artifactId>middleware-parent</artifactId>
     <version>1.0.0</version>
   </parent>
-  <artifactId>fx-trade-service</artifactId>
+  <artifactId>fx-risk-service</artifactId>
 
   <dependencies>
     <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-web</artifactId>
+      <artifactId>spring-boot-starter</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.kafka</groupId>
