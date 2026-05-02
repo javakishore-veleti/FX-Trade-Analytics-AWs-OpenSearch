@@ -102,30 +102,36 @@ docker network create fx-trade-analytics-aws-opensearch-network
 
 ---
 
-# 🔁 Daily Workflow (Correct Way)
+# 🔁 Daily Developer Workflow (Recommended)
 
-## 🟢 Start Infra (only when needed)
+## 🟢 Step 1 — Start Infra (ONLY when needed)
 
 ```bash
 npm run local:docker:up
 ```
 
-## 🟡 Start Apps (multiple times daily)
+👉 Run this only:
+- first time
+- after system restart
+- after docker shutdown
+
+---
+
+## 🟡 Step 2 — Start Applications (repeatable, daily)
 
 ```bash
 npm run local:app:run-all
 npm run local:ui:run-all
 ```
 
-OR
-
-```bash
-npm run local:start
-```
+👉 Run this:
+- multiple times daily
+- during development
+- after code changes
 
 ---
 
-## 🔍 Status
+## 🔍 Check Status
 
 ```bash
 npm run local:status
@@ -133,11 +139,21 @@ npm run local:status
 
 ---
 
-## 🛑 Stop
+## 🛑 Stop Everything
 
 ```bash
 npm run local:stop
 ```
+
+---
+
+## ⚡ Quick Mode (Demo / Shortcut)
+
+```bash
+npm run local:start
+```
+
+👉 Starts both infra + apps (use for demos or fresh setup)
 
 ---
 
@@ -148,6 +164,8 @@ npm run local:stop
 | docker up | ✅ safe |
 | docker down | ✅ safe |
 | docker down -v | ❌ deletes data |
+
+👉 Your setup uses volumes → **data persists across restarts**
 
 ---
 
@@ -191,7 +209,7 @@ npm run local:stop
 - Event-driven microservices
 - Real-time analytics pipeline
 - Cross-region OpenSearch analytics
-- One-command orchestration
+- Clean developer workflow (infra vs apps separation)
 - Production-style observability
 
 ---
