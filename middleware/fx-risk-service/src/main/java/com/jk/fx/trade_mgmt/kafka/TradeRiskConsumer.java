@@ -8,6 +8,6 @@ public class TradeRiskConsumer {
 
     @KafkaListener(topics = "trade-events", groupId = "risk-group")
     public void consume(String trade) {
-        System.out.println("Risk Service received trade: " + trade);
+        System.out.println("Risk received: " + trade);
     }
 }

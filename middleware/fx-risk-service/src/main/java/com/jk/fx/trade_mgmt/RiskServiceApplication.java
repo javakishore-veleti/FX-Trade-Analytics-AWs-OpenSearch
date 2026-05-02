@@ -1,5 +1,4 @@
 package com.jk.fx.trade_mgmt;
-
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 

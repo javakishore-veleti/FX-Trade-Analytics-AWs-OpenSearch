@@ -8,6 +8,6 @@ public class TradeIndexerConsumer {
 
     @KafkaListener(topics = "trade-events", groupId = "indexer-group")
     public void consume(String trade) {
-        System.out.println("Indexed into OpenSearch: " + trade);
+        System.out.println("Indexed: " + trade);
     }
 }
