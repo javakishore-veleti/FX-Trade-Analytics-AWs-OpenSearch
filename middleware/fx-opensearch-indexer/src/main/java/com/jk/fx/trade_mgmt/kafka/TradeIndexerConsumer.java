@@ -4,10 +4,10 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
 @Service
-public class TradeRiskConsumer {
+public class TradeIndexerConsumer {
 
-    @KafkaListener(topics = "trade-events", groupId = "risk-group")
+    @KafkaListener(topics = "trade-events", groupId = "indexer-group")
     public void consume(String trade) {
-        System.out.println("Risk Service received trade: " + trade);
+        System.out.println("Indexed into OpenSearch: " + trade);
     }
 }

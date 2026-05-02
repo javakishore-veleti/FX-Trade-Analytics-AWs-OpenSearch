@@ -1,15 +1,15 @@
 package com.jk.fx.trade_mgmt.api;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import com.jk.fx.trade_mgmt.service.TradeService;
 
 @RestController
 @RequestMapping("/api/trades")
+@RequiredArgsConstructor
 public class TradeController {
 
-    @Autowired
-    private TradeService service;
+    private final TradeService service;
 
     @PostMapping
     public String createTrade() {
