@@ -18,4 +18,5 @@ public class TradeEventDTO {
     private BigDecimal totalCost;
     private String region;
     private long timestamp;
+    private String riskLevel;
 }

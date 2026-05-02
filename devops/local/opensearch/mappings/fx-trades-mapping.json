@@ -1,0 +1,24 @@
+{
+  "mappings": {
+    "properties": {
+      "tradeId": { "type": "keyword" },
+      "traderBook": { "type": "keyword" },
+
+      "fromCurrency": { "type": "keyword" },
+      "toCurrency": { "type": "keyword" },
+
+      "fromAmount": { "type": "double" },
+      "toAmount": { "type": "double" },
+      "rate": { "type": "double" },
+
+      "totalPrice": { "type": "double" },
+      "totalCost": { "type": "double" },
+
+      "region": { "type": "keyword" },
+
+      "riskLevel": { "type": "keyword" },
+
+      "timestamp": { "type": "date" }
+    }
+  }
+}

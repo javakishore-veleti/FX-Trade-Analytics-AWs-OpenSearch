@@ -14,7 +14,7 @@ public class TradeIndexerConsumer {
     private final OpenSearchService openSearchService;
     private final ObjectMapper mapper;
 
-    @KafkaListener(topics = "trade-events", groupId = "indexer-group")
+    @KafkaListener(topics = "trade-events-enriched", groupId = "indexer-group")
     public void consume(String message) {
         try {
             TradeEventDTO trade =
