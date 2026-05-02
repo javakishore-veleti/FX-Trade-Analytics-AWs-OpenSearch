@@ -28,6 +28,10 @@ public class TradeRiskConsumer {
 
             System.out.println("⚡ Risk calculated: " + risk);
 
+            if (trade.getFromAmount().intValue() > 50000) {
+              throw new RuntimeException("Simulated failure 🔥");
+            }
+
             // 🔥 Send enriched event forward
             kafkaTemplate.send("trade-events-enriched",
                     mapper.writeValueAsString(trade));
