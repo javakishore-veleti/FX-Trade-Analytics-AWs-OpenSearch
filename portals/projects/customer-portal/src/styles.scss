@@ -1,0 +1,17 @@
+@use '@angular/material' as mat;
+
+html {
+  color-scheme: light;
+  @include mat.theme((
+    color: mat.$green-palette,
+    typography: Roboto,
+    density: 0,
+  ));
+}
+
+html, body { height: 100%; margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+.spacer { flex: 1 1 auto; }
+.full-width { width: 100%; }
+.form-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.form-row > * { flex: 1 1 200px; }

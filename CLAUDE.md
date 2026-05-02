@@ -1,222 +1,203 @@
-# 🧠 CLAUDE.md — FX Trade Analytics Platform
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ---
 
-# 🎯 PURPOSE OF THIS CODEBASE
-
-This repository implements a **distributed FX trade analytics platform**.
-
-## Primary Objective
-Build a **real-time data pipeline** that:
-
-1. Ingests FX trades
-2. Processes risk
-3. Stores data in OpenSearch
-4. Enables analytics + dashboards
+## Scope guardrails (read first)
 
 Read the entire repo.
 
-Do NOT add new services.
-
-Focus only on:
+Primary focus remains the streaming pipeline:
 1. Validating Kafka → Risk → Indexer → OpenSearch flow
 2. Fixing OpenSearch indexing and mapping issues
 3. Ensuring data is visible in dashboards
 
+Approved scope expansion (owner-confirmed): a `fx-masterdata-service` module exists for currency / currency-pair / trade-book CRUD that the admin UI consumes. New services beyond that still require explicit owner approval.
+
 Do changes incrementally and show diffs per file.
 
-## Why this exists
-This is NOT a CRUD app.
+---
 
-👉 This is a **streaming + analytics system** demonstrating:
-- Event-driven architecture
-- Kafka pipelines
-- OpenSearch analytics
-- Multi-region system design
+## What this project is
+
+A real-time **FX trade analytics pipeline** — not a CRUD app. The point is the streaming + analytics flow:
+
+```
+Trade Service (REST + producer) ──► Kafka: trade-events
+                                          │
+                                          ▼
+                        Risk Service (consumer + enrichment)
+                                          │
+                                          ▼
+                              Kafka: trade-events-enriched
+                                          │
+                                          ▼
+                       OpenSearch Indexer (consumer)
+                                          │
+                                          ▼
+                    OpenSearch index: fx-trades-{region}
+                                          │
+                                          ▼
+                         Search API + Dashboards
+```
+
+Preserve this event-driven decoupling. Do **not** collapse services into direct calls or bypass Kafka. The pipeline is the product.
 
 ---
 
-# 🏗️ SYSTEM OVERVIEW
+## Repository layout
 
-## Core Flow
-
-Trade Service → Kafka → Risk Service → Kafka (enriched)
-                                         ↓
-                                   Indexer Service
-                                         ↓
-                                   OpenSearch
-                                         ↓
-                                  Dashboards / APIs
-
----
-
-# 🧩 MODULES
-
-## fx-trade-service
-- Entry point (REST API)
-- Produces `trade-events`
-- Contains search APIs (OpenSearch)
-
-## fx-risk-service
-- Consumes `trade-events`
-- Calculates risk
-- Publishes `trade-events-enriched`
-- Handles failures (DLQ partial)
-
-## fx-opensearch-indexer
-- Consumes enriched events
-- Indexes into OpenSearch
-
-## fx-common
-- Shared DTOs (TradeEventDTO)
+- **`middleware/`** — Maven multi-module reactor (parent: `middleware-parent`, packaging `pom`). Java 17, Spring Boot 3.4.6.
+  - `fx-common/` — shared `TradeEventDTO` only
+  - `fx-trade-service/` — REST entry point + Kafka producer + OpenSearch search API (port **8080**)
+  - `fx-risk-service/` — Kafka consumer, risk classifier, enriched producer, DLQ (port **8081**)
+  - `fx-opensearch-indexer/` — Kafka consumer → OpenSearch indexing (port **8082**)
+  - `fx-masterdata-service/` — JPA/REST CRUD for currencies, currency pairs, trade books (port **8083**). Layered: `api/` → `service/` (interface) + `service/impl/` → `repository/` (Spring Data JPA) → `entity/`. H2 in-memory by default; `--spring.profiles.active=postgres` switches to `localhost:5432/fxdb`. OpenAPI/Swagger at `/swagger-ui.html`.
+- **`devops/local/`** — Docker Compose stacks for Kafka, OpenSearch, Postgres, observability, plus orchestration scripts
+- **`fx-admin-ui/`** — legacy minimal static React-via-CDN admin page (kept for reference; superseded by `portals/`)
+- **`portals/`** — Angular 21 workspace with two apps:
+  - `projects/admin-portal/` (port **4200**) — CRUD for currencies, currency-pairs, trade-books. Proxies `/api/master/*` → `localhost:8083`.
+  - `projects/customer-portal/` (port **4201**) — Place Trade form (driven by master-data pairs) + Recent Trades view. Proxies `/api/master/*` → `:8083`, `/api/trades` and `/trades` → `:8080`.
+  - Standalone components, Angular Material, lazy-loaded routes. First-time setup: `npm run portals:install` from repo root.
+- **`docs/`** — architecture notes, drawio, screenshots
+- Root `pom.xml` declares only `middleware`. Base Java package is `com.jk.fx.trade_mgmt`.
 
 ---
 
-# 🧠 DESIGN PRINCIPLES
+## Build & run
 
-- Event-driven (Kafka is backbone)
-- Loose coupling between services
-- Streaming-first pipeline
-- Analytics-first design
+### Maven build
 
----
+```bash
+mvn -f middleware/pom.xml clean install            # build all middleware modules
+mvn -pl middleware/fx-trade-service -am package    # build one service + deps
+```
 
-# 🎯 TARGET STATE (VERY IMPORTANT)
+There are currently **no unit tests** in any module. Don't claim test coverage you didn't write. If you add tests, run a single one with:
 
-Claude must aim for THIS state — not over-engineer.
+```bash
+mvn -pl middleware/fx-trade-service -Dtest=ClassName#method test
+```
 
-## ✅ Functional Target
+### Infra + apps (npm orchestration)
 
-- Trades flow end-to-end successfully
-- Risk is calculated and added
-- Data is indexed in OpenSearch
-- Data is queryable via API
-- Dashboards show real data
+```bash
+npm run local:docker:up        # Kafka, OpenSearch, observability, Postgres
+npm run local:docker:down      # tear down + remove network/volumes
+npm run local:docker:status    # docker ps + port checks (lsof)
 
----
+npm run local:app:trade        # mvn spring-boot:run -pl middleware/fx-trade-service
+npm run local:app:risk
+npm run local:app:indexer
+npm run local:app:run-all      # all three via concurrently
 
-## ✅ Technical Target
+npm run local:status           # full health check (containers + service ports)
+npm run local:stop             # devops/local/shutdown-all.sh
+```
 
-- Index pattern:
-  fx-trades-{region}
+PM2 mode: `npm run fx:start` / `fx:status` / `fx:stop` (uses `ecosystem.config.js`).
 
-- Correct mapping:
-  tradeId → keyword
-  riskLevel → keyword
-  region → keyword
-  timestamp → date
-  fromAmount → double
+### Known broken script paths (don't trust blindly)
 
-- Kafka pipeline stable
-- No data loss
-- DLQ working
+- `devops/local/docker-all-up.sh` references a root `docker-compose.yaml` and `postgres/docker-compose.yaml` (relative to repo root). Verify those exist before running, or expect early failures from `set -e`.
 
----
+### UI dev workflow
 
-## ✅ Observability Target
+```bash
+npm run portals:install          # one-time: installs Angular workspace deps
+npm run local:ui:admin           # http://localhost:4200 (admin CRUD on master data)
+npm run local:ui:customer        # http://localhost:4201 (place trade + recent trades)
+npm run local:ui:run-all         # both at once
+```
 
-- Basic metrics available
-- System debuggable via logs + Kafka + OpenSearch
-
----
-
-# ⚠️ CURRENT STATE (REALITY)
-
-System is mostly implemented but not fully validated.
+Both Angular apps use `proxy.conf.json` to forward `/api/master/*` to master-data (8083) and the customer portal additionally proxies `/api/trades` and `/trades` to trade-service (8080). No CORS config needed in dev.
 
 ---
 
-# 🔴 PENDING TASKS
+## Kafka topic wiring (source of truth: code, not config)
 
-## CRITICAL (DO FIRST)
+| Producer | Topic | Consumer |
+|---|---|---|
+| `TradeProducer` (trade-service) | `trade-events` | `TradeRiskConsumer` (risk-service, group `risk-group`) |
+| `TradeRiskConsumer` (after enrichment) | `trade-events-enriched` | `TradeIndexerConsumer` (indexer, group `indexer-group`) |
+| `TradeRiskConsumer` (catch block) | `trade-events-dlq` | `DLQConsumer` (risk-service, group `dlq-group`) |
+| Indexer `KafkaErrorConfig` recoverer | `trade-index-dlq` | `DLQConsumer` (indexer, group `indexer-dlq`) |
 
-- Validate OpenSearch indexing end-to-end
-- Ensure documents exist in indices
-- Fix mapping issues (avoid dynamic mapping problems)
+**Gotcha — config drift**: `fx-risk-service/application.yml` declares `app.kafka.output-topic: risk-events`, but `TradeRiskConsumer.java` hardcodes `trade-events-enriched`. The hardcoded topic wins. Either wire the config in or delete the unused property — don't assume `risk-events` exists anywhere.
 
----
+**Gotcha — duplicated DLQ paths**: risk-service has both a try/catch that publishes to `trade-events-dlq` AND a `KafkaErrorConfig` (`DefaultErrorHandler` + `DeadLetterPublishingRecoverer`, 3 retries / 2s backoff) that would also route failures. Because the listener catches `Exception` itself, the Spring error handler never fires. If you're adding "proper retry," remove the broad catch first.
 
-## HIGH PRIORITY
+### Master-data validation in trade-service
 
-- Improve Search API (filters, structured response)
-- Implement proper Kafka retry (not just try/catch)
-- Validate dashboards with real data
+`TradeProducer.send(...)` now consults a cached `CurrencyPairAllowList` (populated from `fx-masterdata-service` via `MasterDataClient`) before publishing to `trade-events`. Trades whose `(fromCurrency, toCurrency)` pair isn't in the active allow-list are dropped with a WARN log and `send` returns `false`. Tunables in `application.yml` under `masterdata.*`:
 
----
-
-## MEDIUM
-
-- Add aggregation queries:
-  - risk distribution
-  - region analytics
-- Standardize index naming
+- `base-url` — defaults to `http://localhost:8083`
+- `allow-list.fail-open` — defaults to `true` so dev isn't blocked when master-data is down. **Flip to `false` in prod.**
+- `allow-list.refresh-interval-seconds` — lazy refresh cadence (default 300s)
 
 ---
 
-## LOW
+## OpenSearch wiring
 
-- UI improvements
-- Better test data generation
+- All three services that talk to OpenSearch hardcode `localhost:9200` HTTP in their `OpenSearchConfig` (`RestHighLevelClient`, opensearch-rest-high-level-client 2.11.0). No auth, no TLS — local-only.
+- Indexer writes to `fx-trades-{region}`, document id = `tradeId`, source built via `mapper.convertValue(trade, Map.class)` (so types rely on dynamic mapping unless an index template is applied first).
+- Mapping JSON: `devops/local/opensearch/mappings/fx-trades-mapping.json`. Apply it as an index template **before** any documents land, otherwise dynamic mapping will misclassify `timestamp` (long, should be date) and `riskLevel/region/tradeId` (text+keyword multi-field, should be keyword).
+- Dashboards NDJSON: `devops/local/opensearch/mappings/fx-{overview,risk,region,monitoring}.ndjson` — load via OpenSearch Dashboards → Stack Management → Saved Objects → Import. They depend on the index pattern `fx-trades-*` existing.
+- Search API: `TradeSearchController` exposes `GET /trades/search/risk?risk=HIGH` against index pattern `fx-trades-*` and returns the raw `SearchResponse.toString()` — not JSON. Any "improve search API" task should fix that response shape.
 
----
+**Gotcha — controller package**: `TradeSearchController` is in package `com.jk.fx.trade_mgmt.controller` while `TradeController` is in `...api`. Both still get scanned because the `@SpringBootApplication` is at `com.jk.fx.trade_mgmt`, but the inconsistency is real.
 
-# 🔍 OPENSEARCH EXPECTATIONS
-
-## Index Pattern
-fx-trades-*
-
-## Must Support
-- search by risk
-- search by region
-- aggregations
+**Gotcha — auto-generated load**: `TradeDataGenerator` is a `@Component implements CommandLineRunner` that **fires 50 random trades on every trade-service startup**. Convenient for end-to-end validation, surprising if you didn't expect it. Gate behind a profile or remove `@Component` if it gets in the way.
 
 ---
 
-# 🐳 LOCAL DEVELOPMENT
+## Service URLs
 
-## Start Infra
-npm run local:docker:up
+| Service | URL |
+|---|---|
+| Trade API | http://localhost:8080 (`POST /api/trades` legacy demo, `POST /api/trades/place` real, `GET /trades/search?risk&region&size`, `GET /trades/search/risk` legacy) |
+| Admin Portal | http://localhost:4200 |
+| Customer Portal | http://localhost:4201 |
+| Risk Service | http://localhost:8081 |
+| Indexer | http://localhost:8082 |
+| Master Data | http://localhost:8083 (Swagger: `/swagger-ui.html`, H2 console: `/h2-console`) |
+| OpenSearch | http://localhost:9200 |
+| OpenSearch Dashboards | http://localhost:5601 |
+| Grafana | http://localhost:3000 |
+| Prometheus | http://localhost:9090 |
+| Kafka | localhost:9092 |
 
-## Start Apps
-npm run local:app:run-all
-
----
-
-# 🧠 RULES FOR CLAUDE
-
-When modifying this codebase:
-
-## DO
-- Respect event-driven flow
-- Keep services decoupled
-- Use Kafka for communication
-- Validate OpenSearch results
-
-## DO NOT
-- Convert to monolith
-- Add unnecessary frameworks
-- Over-engineer abstractions
-- Break Kafka pipeline
+Each Spring service exposes Prometheus metrics via Actuator at `/actuator/prometheus`.
 
 ---
 
-## DEBUGGING ORDER (IMPORTANT)
+## Debugging order (when end-to-end flow breaks)
 
-1. Kafka topic (data present?)
-2. Risk service logs
-3. Enriched topic
-4. Indexer logs
-5. OpenSearch index
+Earlier links break the later ones — check in this order:
+
+1. Source Kafka topic populated? (`trade-events`, then `trade-events-enriched`)
+2. Risk-service logs for `⚡ Risk calculated` / `❌ Sending to DLQ`
+3. `trade-events-enriched` topic populated?
+4. Indexer logs for `✅ Indexed trade: ...`
+5. OpenSearch: `GET _cat/indices?v` and `GET fx-trades-*/_search`
+6. Dashboards: index pattern `fx-trades-*` exists in OpenSearch Dashboards?
 
 ---
 
-# 🚀 FINAL SUMMARY
+## Target state (the bar to hit)
 
-This project is a:
+**Functional**: trades flow end-to-end, risk added, documents in OpenSearch, queryable via API, dashboards show real data.
 
-Real-time FX analytics platform using Kafka + OpenSearch
+**Technical**: index pattern `fx-trades-{region}`; mapping enforces `tradeId/riskLevel/region` as `keyword`, `timestamp` as `date`, `fromAmount` as `double`; pipeline stable; no data loss; DLQ working.
 
-Focus on:
-- Data flow correctness
-- Indexing correctness
-- Analytics visibility
+**Observability**: basic metrics; debuggable via logs + Kafka + OpenSearch.
+
+---
+
+## Conventions
+
+- Communicate between services via Kafka, not REST-to-REST.
+- Don't introduce a database, ORM, or service-mesh layer for problems Kafka + OpenSearch already solve here.
+- When you change a topic name, update producer, consumer, AND `application.yml` together (see drift gotcha).
+- Don't add features outside the immediate request — this codebase is intentionally minimal scaffolding around the pipeline.

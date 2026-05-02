@@ -18,4 +18,12 @@ management:
 
 app:
   kafka:
-    topic: trade-events      
+    topic: trade-events
+
+masterdata:
+  base-url: http://localhost:8083
+  allow-list:
+    # When true, allow trades through if the master-data service is unreachable.
+    # Flip to false in prod once masterdata is a hard dependency.
+    fail-open: true
+    refresh-interval-seconds: 300

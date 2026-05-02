@@ -43,6 +43,7 @@ echo "🧠 Microservices:"
 check_port 8080 "Trade Service"
 check_port 8081 "Risk Service"
 check_port 8082 "Indexer Service"
+check_port 8083 "Master Data Service"
 
 echo ""
 echo "🖥️ UI Apps:"

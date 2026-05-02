@@ -1,8 +1,8 @@
 com/jk/fx/trade_mgmt/kafka/TradeProducer.class
 com/jk/fx/trade_mgmt/TradeServiceApplication.class
-com/jk/fx/trade_mgmt/service/TradeService.class
 com/jk/fx/trade_mgmt/util/TradeDataGenerator.class
-com/jk/fx/trade_mgmt/api/TradeController.class
 com/jk/fx/trade_mgmt/service/TradeSearchService.class
+com/jk/fx/trade_mgmt/service/TradeService.class
+com/jk/fx/trade_mgmt/api/TradeController.class
 com/jk/fx/trade_mgmt/config/OpenSearchConfig.class
-com/jk/fx/trade_mgmt/controller/TradeSearchController.class
+com/jk/fx/trade_mgmt/client/MasterDataClient$1.class

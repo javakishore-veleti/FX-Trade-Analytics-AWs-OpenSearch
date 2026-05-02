@@ -16,16 +16,21 @@ module.exports = {
       args: "spring-boot:run -pl middleware/fx-opensearch-indexer -Dspring-boot.run.arguments=--server.port=8082"
     },
     {
+      name: "masterdata-service",
+      script: "mvn",
+      args: "spring-boot:run -pl middleware/fx-masterdata-service -Dspring-boot.run.arguments=--server.port=8083"
+    },
+    {
       name: "admin-ui",
       script: "npm",
-      args: "start",
-      cwd: "portals/admin-portal"
+      args: "run start:admin",
+      cwd: "portals"
     },
     {
       name: "customer-ui",
       script: "npm",
-      args: "start",
-      cwd: "portals/customer-portal"
+      args: "run start:customer",
+      cwd: "portals"
     }
   ]
 };

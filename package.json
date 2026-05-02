@@ -10,11 +10,14 @@
     "local:app:trade": "mvn spring-boot:run -pl middleware/fx-trade-service",
     "local:app:risk": "mvn spring-boot:run -pl middleware/fx-risk-service",
     "local:app:indexer": "mvn spring-boot:run -pl middleware/fx-opensearch-indexer",
+    "local:app:masterdata": "mvn spring-boot:run -pl middleware/fx-masterdata-service",
+    "local:app:masterdata:postgres": "mvn spring-boot:run -pl middleware/fx-masterdata-service -Dspring-boot.run.profiles=postgres",
 
-    "local:app:run-all": "concurrently -k \"npm:local:app:trade\" \"npm:local:app:risk\" \"npm:local:app:indexer\"",
+    "local:app:run-all": "concurrently -k \"npm:local:app:trade\" \"npm:local:app:risk\" \"npm:local:app:indexer\" \"npm:local:app:masterdata\"",
 
-    "local:ui:admin": "cd portals/admin-portal && npm start",
-    "local:ui:customer": "cd portals/customer-portal && npm start",
+    "portals:install": "cd portals && npm install",
+    "local:ui:admin": "cd portals && npm run start:admin",
+    "local:ui:customer": "cd portals && npm run start:customer",
 
     "local:ui:run-all": "concurrently -k \"npm:local:ui:admin\" \"npm:local:ui:customer\"",
 

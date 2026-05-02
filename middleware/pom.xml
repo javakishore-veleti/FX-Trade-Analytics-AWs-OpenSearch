@@ -19,5 +19,6 @@
     <module>fx-trade-service</module>
     <module>fx-risk-service</module>
     <module>fx-opensearch-indexer</module>
+    <module>fx-masterdata-service</module>
   </modules>
 </project>
