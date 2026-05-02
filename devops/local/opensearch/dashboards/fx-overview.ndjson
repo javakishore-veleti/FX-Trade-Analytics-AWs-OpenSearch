@@ -1,0 +1,2 @@
+{"type":"index-pattern","id":"fx-trades","attributes":{"title":"fx-trades-*","timeFieldName":"timestamp"}}
+{"type":"dashboard","id":"fx-overview-dashboard","attributes":{"title":"FX Overview Dashboard","description":"Main FX analytics dashboard"}}
