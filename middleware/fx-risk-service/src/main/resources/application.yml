@@ -2,6 +2,11 @@
 spring:
   kafka:
     bootstrap-servers: localhost:9092
+    producer:
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: risk-group
+      auto-offset-reset: earliest
 server:
   port: 8081
 
@@ -13,3 +18,8 @@ management:
   endpoint:
     prometheus:
       enabled: true
+
+app:
+  kafka:
+    input-topic: trade-events
+    output-topic: risk-events

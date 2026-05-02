@@ -19,25 +19,28 @@ public class TradeRiskConsumer {
     @KafkaListener(topics = "trade-events", groupId = "risk-group")
     public void consume(String message) {
 
-        try {
-            TradeEventDTO trade =
-                    mapper.readValue(message, TradeEventDTO.class);
+    try {
+        TradeEventDTO trade =
+                mapper.readValue(message, TradeEventDTO.class);
 
-            String risk = calculator.calculateRisk(trade);
-            trade.setRiskLevel(risk);
+        String risk = calculator.calculateRisk(trade);
+        trade.setRiskLevel(risk);
 
-            System.out.println("⚡ Risk calculated: " + risk);
+        System.out.println("⚡ Risk calculated: " + risk);
 
-            if (trade.getFromAmount().intValue() > 50000) {
-              throw new RuntimeException("Simulated failure 🔥");
-            }
-
-            // 🔥 Send enriched event forward
-            kafkaTemplate.send("trade-events-enriched",
-                    mapper.writeValueAsString(trade));
-
-        } catch (Exception e) {
-            System.out.println("❌ Risk processing failed");
+        // simulate failure
+        if (trade.getFromAmount().intValue() > 50000) {
+            throw new RuntimeException("Simulated failure 🔥");
         }
+
+        kafkaTemplate.send("trade-events-enriched",
+                mapper.writeValueAsString(trade));
+
+    } catch (Exception e) {
+
+        System.out.println("❌ Sending to DLQ");
+
+        kafkaTemplate.send("trade-events-dlq", message);
     }
+}
 }
