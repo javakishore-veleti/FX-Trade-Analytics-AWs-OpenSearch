@@ -1,135 +1,136 @@
 # 🚀 FX Trade Analytics Platform (AWS + OpenSearch)
 
-A distributed FX trade analytics platform using:
-- Spring Boot microservices
-- Kafka (event-driven)
-- OpenSearch (analytics)
-- Docker-based local orchestration
+> A production-style distributed system demonstrating **event-driven FX analytics** with Kafka, OpenSearch, and microservices.
+
+---
+
+## 🎬 System Overview
+
+```mermaid
+flowchart LR
+    A[Trade API] -->|Publish| B[Kafka]
+    B --> C[Risk Service]
+    C -->|Enriched Event| B
+    B --> D[OpenSearch Indexer]
+    D --> E[OpenSearch]
+    E --> F[Dashboards UI]
+```
 
 ---
 
 ## 📚 Table of Contents
 
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [First-Time Setup](#first-time-setup)
-- [Daily Usage](#daily-usage)
-- [Stop Everything](#stop-everything)
-- [Check Status](#check-status)
-- [Key URLs](#key-urls)
+- Overview
+- Architecture
+- Developer Quick Start
+- Daily Usage
+- System Components
+- Observability
+- Key URLs
 
 ---
 
-## Overview
+## 🧠 Architecture (Detailed)
 
-This project demonstrates a real-world FX analytics system with:
-- Trade ingestion API
-- Kafka event streaming
-- Risk enrichment service
-- OpenSearch indexing
-- Dashboards
+```mermaid
+flowchart TD
+    subgraph Microservices
+        TS[Trade Service]
+        RS[Risk Service]
+        IDX[Indexer Service]
+    end
 
----
+    subgraph Messaging
+        K[(Kafka / Redpanda)]
+    end
 
-## Architecture
+    subgraph Storage
+        OS[(OpenSearch)]
+        PG[(Postgres)]
+    end
 
-Trade Service → Kafka → Risk Service → Kafka → OpenSearch Indexer → OpenSearch → Dashboards
+    subgraph Observability
+        PR[Prometheus]
+        GR[Grafana]
+        JG[Jaeger]
+    end
 
----
+    TS --> K
+    K --> RS
+    RS --> K
+    K --> IDX
+    IDX --> OS
 
-## Project Structure
+    TS --> PR
+    RS --> PR
+    IDX --> PR
 
+    PR --> GR
+    TS --> JG
+    RS --> JG
 ```
-devops/local/
-  ├── kafka/
-  ├── opensearch/
-  ├── observability/
-  ├── postgres/
-  ├── docker-all-up.sh
-  ├── docker-all-down.sh
-  ├── status-all.sh
-  ├── shutdown-all.sh
-
-middleware/
-  ├── fx-trade-service
-  ├── fx-risk-service
-  ├── fx-opensearch-indexer
-```
 
 ---
 
-## Prerequisites
+## ⚡ Developer Quick Start
 
-- Java 17+
-- Maven
-- Node.js
-- Docker Desktop
-
----
-
-## First-Time Setup
-
-### Install dependencies
-
-```
+```bash
 npm install
-```
-
-### Make scripts executable
-
-```
 chmod +x devops/local/*.sh
-```
-
-### Create Docker network (one-time)
-
-```
 docker network create fx-trade-analytics-aws-opensearch-network
-```
-
----
-
-## Daily Usage
-
-### Start everything
-
-```
 npm run local:start
 ```
 
-### Background (daemon mode)
-
-```
-npm run fx:start
-```
-
 ---
 
-## Stop Everything
+## 🔁 Daily Usage
 
-```
-npm run local:stop
-```
+### 🚀 Start everything
 
-or
-
-```
-npm run fx:stop
+```bash
+npm run local:start
 ```
 
----
+### 🔍 Check status
 
-## Check Status
-
-```
+```bash
 npm run local:status
 ```
 
+### 🛑 Stop everything
+
+```bash
+npm run local:stop
+```
+
 ---
 
-## Key URLs
+## 🧱 System Components
+
+| Component | Description |
+|----------|------------|
+| Trade Service | Ingest FX trades |
+| Risk Service | Calculates risk |
+| Indexer | Pushes to OpenSearch |
+| Kafka | Event backbone |
+| OpenSearch | Analytics store |
+| Grafana | Metrics dashboards |
+| Prometheus | Metrics collection |
+| Jaeger | Distributed tracing |
+
+---
+
+## 📊 Observability Stack
+
+```mermaid
+flowchart LR
+    Services --> Prometheus --> Grafana
+    Services --> Jaeger
+```
+
+---
+
+## 🌐 Key URLs
 
 | Service | URL |
 |--------|-----|
@@ -145,10 +146,28 @@ npm run local:status
 
 ---
 
-## 🎯 Quick Commands
+## 🎯 One Command Control
 
-```
+```bash
 npm run local:start
 npm run local:status
 npm run local:stop
 ```
+
+---
+
+## 🔥 Highlights
+
+- Event-driven microservices architecture
+- Real-time analytics pipeline
+- Multi-service orchestration with one command
+- Production-style observability stack
+
+---
+
+## 🚀 Next Enhancements
+
+- AWS multi-region deployment
+- Advanced dashboards
+- Kafka DLQ + replay
+- Authentication + RBAC
