@@ -26,51 +26,69 @@ Trade Service → Kafka → Risk Service
 - Spring Boot 3.4.6
 - Multi-module build working
 
+### Shared Domain (fx-common)
+- fx-common module created
+- TradeEventDTO implemented
+- Lombok configured
+
 ### Microservices
-- fx-trade-service (API + Kafka producer)
-- fx-risk-service (Kafka consumer)
-- fx-opensearch-indexer (Kafka consumer)
+- fx-trade-service (API + Kafka producer - JSON events)
+- fx-risk-service (Kafka consumer - basic logging)
+- fx-opensearch-indexer (Kafka consumer - placeholder)
 
 ### Event-Driven System
 - Kafka topic: trade-events
-- Fan-out consumers (risk + indexer)
+- JSON-based messaging
+- Fan-out consumers
 
 ### DevOps (Local)
 - Docker scripts (up/down/status)
 - Kafka via Redpanda
 
-### Platform CLI (PM2)
-- npm run fx:start
-- npm run fx:status
-- npm run fx:stop
-- Background daemon processes
+### Platform CLI
+- PM2 integration
+- fx:start / fx:status / fx:stop
+- Background process management
 
 ---
 
 ## 🆕 NEWLY ADDED
 
-- PM2-based orchestration
+- Shared DTO model (fx-common)
+- JSON Kafka events
+- PM2 daemon orchestration
 - ecosystem.config.js
-- Unified lifecycle commands
-- Full system status + shutdown
+
+---
+
+## ⚠️ PARTIAL
+
+### Risk Service
+- Consumer exists
+- No real risk logic yet
+
+### OpenSearch Design
+- Index strategy defined
+- Not implemented
 
 ---
 
 ## ⏳ PENDING
 
-### OpenSearch
-- Real indexing
+### OpenSearch (CRITICAL)
+- OpenSearch client integration
 - Index mapping
 - Region-based indices
+- Real indexing from Kafka
 
 ### Dashboard
 - Trades over time
 - Trades by region
-- Risk distribution
+- Risk analytics
 
 ### UI
-- Admin Portal
-- Customer Portal
+- Admin portal
+- Customer portal
 
 ### Observability
 - Prometheus
@@ -78,16 +96,8 @@ Trade Service → Kafka → Risk Service
 - Jaeger
 
 ### AWS
-- GitHub Actions deployment
-- Multi-region setup
-
----
-
-## 🎥 FINAL GOAL
-
-- Blog + YouTube demo
-- Show Kafka → OpenSearch flow
-- Demonstrate cross-region analytics
+- GitHub workflows
+- Multi-region deployment
 
 ---
 
@@ -96,19 +106,19 @@ Trade Service → Kafka → Risk Service
 | Layer | Status |
 |------|-------|
 | Build | ✅ |
-| Microservices | ✅ |
+| fx-common | ✅ |
 | Kafka | ✅ |
+| Microservices | 🟡 |
+| Risk Logic | ❌ |
+| OpenSearch | ❌ |
+| Dashboard | ❌ |
+| UI | ❌ |
 | DevOps | ✅ |
 | Process Mgmt | 🔥 |
-| OpenSearch | ⏳ |
-| Dashboard | ⏳ |
-| AWS | ⏳ |
+| AWS | ❌ |
 
 ---
 
-## 🚀 SUMMARY
+## 🚀 NEXT STEP
 
-A real distributed FX analytics platform with:
-- Event-driven architecture
-- Scalable microservices
-- Developer-friendly orchestration
+Implement OpenSearch indexing to complete analytics layer.
