@@ -1,0 +1,101 @@
+<mxfile host="Electron" pages="4">
+  <diagram name="01 - End to End Flow" id="0">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- Nodes -->
+        <mxCell id="cust" value="Customer Portal" style="rounded=1;fillColor=#d5e8d4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="admin" value="Admin Portal" style="rounded=1;fillColor=#d5e8d4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="trade" value="Trade Service" style="rounded=1;fillColor=#dae8fc;" vertex="1" parent="1">
+          <mxGeometry x="220" y="100" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="kafka" value="Kafka (trade-events)" style="ellipse;fillColor=#000000;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="420" y="100" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="risk" value="Risk Service" style="rounded=1;fillColor=#dae8fc;" vertex="1" parent="1">
+          <mxGeometry x="650" y="60" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="index" value="Indexer" style="rounded=1;fillColor=#dae8fc;" vertex="1" parent="1">
+          <mxGeometry x="650" y="160" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="os" value="OpenSearch" style="rounded=1;fillColor=#f8cecc;" vertex="1" parent="1">
+          <mxGeometry x="850" y="110" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ui" value="OpenSearch UI (Cross-Region)" style="rounded=1;fillColor=#fff2cc;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="110" width="200" height="70" as="geometry" />
+        </mxCell>
+        <!-- Edges -->
+        <mxCell id="e1" edge="1" source="cust" target="trade" parent="1" value="POST /trades">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" source="admin" target="trade" parent="1" value="Manage Trades">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" source="trade" target="kafka" parent="1" value="trade-events">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" source="kafka" target="risk" parent="1" value="consume">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" source="risk" target="kafka" parent="1" value="risk-events">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" source="kafka" target="index" parent="1" value="fan-out">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" source="index" target="os" parent="1" value="index">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" source="os" target="ui" parent="1" value="query">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="02 - Multi Region AWS" id="1">
+    <mxGraphModel dx="32955" dy="25334" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="ra" parent="1" style="rounded=1;strokeColor=#000000;" value="AWS Region A" vertex="1">
+          <mxGeometry height="200" width="300" x="-2114" y="-1344" as="geometry" />
+        </mxCell>
+        <mxCell id="rb" parent="1" style="rounded=1;strokeColor=#000000;" value="AWS Region B" vertex="1">
+          <mxGeometry height="200" width="300" x="-2114" y="-1084" as="geometry" />
+        </mxCell>
+        <mxCell id="osa" parent="1" style="rounded=1;fillColor=#f8cecc;" value="OpenSearch A" vertex="1">
+          <mxGeometry height="60" width="120" x="-2054" y="-1284" as="geometry" />
+        </mxCell>
+        <mxCell id="osb" parent="1" style="rounded=1;fillColor=#f8cecc;" value="OpenSearch B" vertex="1">
+          <mxGeometry height="60" width="120" x="-2054" y="-1024" as="geometry" />
+        </mxCell>
+        <mxCell id="ui2" parent="1" style="rounded=1;fillColor=#fff2cc;" value="Cross-Region OpenSearch UI" vertex="1">
+          <mxGeometry height="80" width="220" x="-1714" y="-1184" as="geometry" />
+        </mxCell>
+        <mxCell id="2" edge="1" parent="1" source="osa" target="ui2" value="query" />
+        <mxCell id="3" edge="1" parent="1" source="osb" target="ui2" value="query" />
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="03 - Kafka Data Flow" id="2">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" edge="1" source="k1" target="i" value="consume" />
+        <mxCell id="1" parent="0" />
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="04 - Observability" id="3">
+    <mxGraphModel dx="2904" dy="2007" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" edge="1" source="svc" target="jae" value="traces" />
+        <mxCell id="1" parent="0" />
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
