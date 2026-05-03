@@ -33,6 +33,14 @@
     - [Multi-region operations & cost](#multi-region-operations--cost)
     - [Adjacent extensions (scaffolding ready)](#adjacent-extensions-scaffolding-ready)
 - [🔥 Highlights](#-highlights)
+- [🛠️ AWS OpenSearch Implementation Plan](#️-aws-opensearch-implementation-plan)
+  - [Goal](#goal)
+  - [Deployment modes](#deployment-modes)
+  - [Provider abstraction (factory pattern)](#provider-abstraction-factory-pattern)
+  - [Pagination strategy](#pagination-strategy)
+  - [GitHub Actions workflows for AWS provisioning](#github-actions-workflows-for-aws-provisioning)
+  - [Open design decisions](#open-design-decisions)
+  - [Companion document](#companion-document)
 
 ---
 
@@ -296,3 +304,110 @@ The same Kafka → enrichment → OpenSearch indexing pattern naturally extends 
 - Cross-region OpenSearch analytics
 - Clean developer workflow
 - Production-style observability
+
+---
+
+# 🛠️ AWS OpenSearch Implementation Plan
+
+> **Status:** Design phase — no code yet. Consolidates the design decisions for showcasing the new [AWS OpenSearch UI cross-region data access](https://aws.amazon.com/about-aws/whats-new/2026/05/opensearch-ui-cross-region-data-access-domains/) feature (May 1, 2026) using this codebase.
+
+## Goal
+
+Showcase **AWS OpenSearch UI cross-region data access** end-to-end on this codebase by:
+
+1. Standing up **AWS OpenSearch domains in three regions** (`us-east-1`, `eu-west-1`, `ap-south-1`) via GitHub Actions workflows.
+2. Letting the application — **whether running locally on a laptop or deployed to ECS** — write into the right regional OpenSearch domain based on each trade's `region` field.
+3. Running the **AWS-managed OpenSearch UI in `us-east-1`** that federates queries across all three regional domains as a single pane of glass — without moving data.
+4. Building a **companion search view in the admin portal** with region radio buttons (single-region only; cross-region demo lives in the AWS UI).
+
+## Deployment modes
+
+Same code, different config:
+
+| Mode | Compute lives | OpenSearch lives | When |
+|---|---|---|---|
+| **Local dev** | Developer's laptop | AWS OpenSearch domains (3 regions) | While building & recording the demo |
+| **AWS** | ECS Fargate (per region) | AWS OpenSearch domains (same 3) | Production target |
+
+The OpenSearch domains are the **same set of AWS-managed instances** in both modes. Only the compute origin changes.
+
+## Provider abstraction (factory pattern)
+
+Application talks to OpenSearch through a **factory that returns a stateless, region-keyed singleton client**. Each region's client is built once at startup with the right transport:
+
+| Region's `provider` | Transport | Auth |
+|---|---|---|
+| `local` | Apache HTTP | None |
+| `aws`   | `AwsSdk2Transport` from `opensearch-java` | SigV4 (uses local AWS profile in dev, ECS task role in prod) |
+| _(future)_ `azure`, `gcp` | TBD | TBD |
+
+**One SDK** (`opensearch-java`), two transports — not two SDKs. AWS provider only does data plane (`index`, `search`); control-plane operations (create/delete domains) live in the GitHub Actions CloudFormation workflows.
+
+**Config schema (illustrative):**
+```yaml
+fx.opensearch.backends:
+  - region: us-east-1
+    provider: aws
+    endpoint: https://fx-trades-use1.us-east-1.es.amazonaws.com
+  - region: eu-west-1
+    provider: aws
+    endpoint: https://fx-trades-euw1.eu-west-1.es.amazonaws.com
+  - region: ap-south-1
+    provider: aws
+    endpoint: https://fx-trades-aps1.ap-south-1.es.amazonaws.com
+  - region: local-dev
+    provider: local
+    endpoint: http://localhost:9200
+```
+
+## Pagination strategy
+
+Server cap: **200 hits per page** (for `_source` retrieval; aggregations exempt).
+Client UX: **20 rows per visible page** → 10 client pages per server chunk.
+
+| Behaviour | Implementation |
+|---|---|
+| Total count | Returned with every search response (cheap in OpenSearch) |
+| Prefetch trigger | When the user reaches client page 9 of 10, prefetch the next 200 |
+| Client cache | Sliding window of recent chunks (LRU); invalidated on filter/sort change |
+| Pagination type | Start with `from/size` (≤ 2k results); upgrade to `search_after` cursor if scaling demands |
+
+## GitHub Actions workflows for AWS provisioning
+
+All workflows are **manual-trigger** (`workflow_dispatch`), prefixed by sequence number. New OpenSearch workflows extend the existing 001/002/003 family. Each workflow accepts a **multi-select region input** (one or more or all). Operations are **idempotent** — if the resource already exists, gracefully skip and log.
+
+| Workflow | What it does |
+|---|---|
+| `001-AWS-Initial-Setup-VPC` | Per region: create new VPC **or** reuse an existing VPC if its ID is supplied as input |
+| `001-AWS-Destroy-VPC` | Tear down VPCs created by the setup workflow (skips supplied/existing) |
+| `004-AWS-Setup-Region-OpenSearch` | Per selected region: create AWS OpenSearch domain. Skip-if-exists with informational message. |
+| `004-AWS-Destroy-Region-OpenSearch` | Per selected region: delete the OpenSearch domain |
+| `995-AWS-All-Setup` | Orchestrator — runs all setup workflows in dependency order |
+| `996-AWS-All-Destroy` | Orchestrator — runs all destroy workflows in reverse order |
+
+Existing workflows `002-AWS-Initial-Setup-IAM-Roles` and `003-AWS-Initial-Setup-ECR` (and their destroy pairs) remain unchanged; the new OpenSearch workflows slot in at `004`.
+
+## Open design decisions
+
+These need answers before any code is written. The full discussion lives in `README_OpenSearch_Core_Impl_DevPlan.md`.
+
+| # | Decision | My recommendation |
+|---|---|---|
+| **1** | `createOrder` vs `placeTrade` — same thing? | Same — keep existing `POST /api/trades/place` name |
+| **2** | What is `publishIndex`? (REST endpoint, internal step, or rename of Kafka→indexer?) | Internal indexer write — not a new REST endpoint |
+| **3** | Is `local` OpenSearch still in scope as a provider? | Yes — for offline iteration; AWS is what the demo shows |
+| **4** | Why `cloudProvider` in every request DTO? | Make it optional override; default comes from server config keyed by `region` |
+| **5** | Pagination cache scope | Sliding window of recent chunks (LRU), invalidated on filter/sort change |
+| **6** | Prefetch direction | Forward only on initial impl; bidirectional later if needed |
+| **7** | "AWS OpenSearch SDK" — which one? | `opensearch-java` + `AwsSdk2Transport` (data plane). NOT the v2 control-plane SDK |
+| **8** | App-side cross-region search | Skip — single region only in app; federation belongs to AWS OpenSearch UI |
+| **9** | Customer impersonation for demo recording | Add admin "view as customer X" button |
+| **10** | OpenSearch domains — public or VPC | Public for demo; document VPC variant |
+| **11** | Provision OpenSearch domains now or after workflow? | After workflow — build the workflow first, use it once |
+| **12** | Numbering convention for new OpenSearch workflows | `004` (next after existing `001/002/003`) |
+| **13** | Where does the search-client factory live? | New module `fx-search-client` (cleanest), shared by trade-service + indexer |
+| **14** | VPC strategy per region | Mixed — workflow accepts optional VPC ID per region; creates new where not supplied |
+
+## Companion document
+
+See **[`README_OpenSearch_Core_Impl_DevPlan.md`](README_OpenSearch_Core_Impl_DevPlan.md)** for the full task breakdown — categorized by phase with status tracking, dependencies, and acceptance criteria. This README captures the **what**; the dev plan captures the **how, in what order, and what's done**.
