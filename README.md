@@ -465,7 +465,7 @@ You're ready. Every workflow under `.github/workflows/` can now run.
 
 You now have repo secrets `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` backed by a deployer IAM user. Here's the recommended order to validate everything works and get to a running multi-region demo.
 
-### Step 8 · Smoke-test in one region first
+### Step 9 · Smoke-test in one region first
 
 Don't run `995-AWS-All-Setup` straight away — it provisions everything across 7 regions; any auth issue would waste 15+ minutes. Start small:
 
@@ -521,16 +521,16 @@ For the rare manual case:
   ```
 - Then re-run the GitHub workflow.
 
-### Step 9 · Verify in the AWS Console
+### Step 10 · Verify in the AWS Console
 
 - Switch to **us-east-1** (region selector, top-right of the AWS Console).
 - Open **OpenSearch Service** → **Domains** in the left sidebar.
 - You should see a domain named **`fxs-dev-us-east-1`** in `Active` state.
-- Click into it → the **Domain endpoint** shown here is what the application will eventually connect to. Save the URL — you'll need it in step 11.
+- Click into it — the **Domain endpoint** is what the local app will hit. You no longer need to copy it by hand: the admin portal's **Sync All** button discovers it automatically (Step 12 below).
 
-### Step 10 · Provision the rest of the regions
+### Step 11 · Provision the rest of the regions
 
-Once step 8 was clean:
+Once step 9 was clean:
 
 - **Add more regions one at a time:** re-run `004-AWS-Setup-Region-OpenSearch` with e.g. `regions=eu-west-2,ap-south-1`.
 - **All 7 at once (Balanced demo set):** `regions=all`.
@@ -538,62 +538,52 @@ Once step 8 was clean:
 
 > 💰 **Cost reminder:** ~$50/mo per OpenSearch domain on `t3.small.search`. 7 regions ≈ $350/mo running, ~$70/mo idle. Pause domains between work sessions to save (AWS Console → Domain → Actions → Pause).
 
-### Step 11 · Run the local app writing to AWS OpenSearch
+### Step 12 · Run the local app writing to AWS OpenSearch
 
-> ⏳ **Pending:** This requires Phase 2 (`fx-search-client` Maven module) to be built first. Until then, the application writes only to localhost OpenSearch (the existing dev flow under [Daily Developer Workflow](#-daily-developer-workflow-recommended)).
+The "manually edit application.yml with each AWS endpoint" walkthrough that used to live here is no longer the recommended path — `fx-search-client` now supports pulling backends from the masterdata DB at runtime. Two options, in order of recommendation:
 
-When Phase 2 lands, the steps will be:
+**Option A (recommended) — admin-portal-driven sync.** The admin portal discovers AWS deployments via the AWS APIs and persists them; the indexer + trade-service read that list at runtime.
 
-1. **Get each AWS OpenSearch domain endpoint.** From the AWS Console (step 9) or via CLI:
+1. **Generate the local secrets file** if you haven't (Step 7 above): `npm run localhost:app:secrets:generate`. The masterdata sync feature uses these credentials to call AWS.
+2. **Start the stack:**
    ```bash
-   aws cloudformation describe-stacks --region us-east-1 \
-     --stack-name fx-dev-opensearch-us-east-1 \
-     --query 'Stacks[0].Outputs[?OutputKey==`DomainEndpoint`].OutputValue' --output text
+   npm run localhost:app:infra:all-up
+   npm run localhost:app:services-ui:all-up
    ```
-2. **Drop them into `application.yml`** for `fx-trade-service` and `fx-opensearch-indexer`:
+3. **Open the admin portal:** [http://localhost:4200](http://localhost:4200) → sidebar → **Administration → OpenSearch (AWS)**.
+4. **Click "Sync all regions"** at the top. The masterdata service walks every region under `fx.aws.regions` calling `listDomainNames` + `listCollections`, and persists what it finds (with the canonical endpoint as a first-class field). Any tracked deployment shows status, region, type, and click-through links to the AWS Console + the OpenSearch Dashboards URL.
+5. **Flip indexer + trade-service to read backends from masterdata.** Edit `middleware/fx-trade-service/src/main/resources/application.yml` and `middleware/fx-opensearch-indexer/src/main/resources/application.yml`:
    ```yaml
-   fx.opensearch.backends:
-     - region: us-east-1
-       provider: aws
-       endpoint: https://fxs-dev-us-east-1-XXXXXX.us-east-1.es.amazonaws.com
-     - region: eu-west-2
-       provider: aws
-       endpoint: https://fxs-dev-eu-west-2-YYYYYY.eu-west-2.es.amazonaws.com
+   fx:
+     opensearch:
+       source:
+         type: masterdata          # was: yaml
    ```
-3. **Make sure your local `~/.aws/credentials` profile** can reach those domains (the indexer SigV4-signs requests with that profile). The `fx-trade-opensearch-github-deployer` user from the IAM bootstrap is fine — just configure a profile with its keys:
-   ```bash
-   aws configure --profile fx-trade-opensearch
-   # Access Key ID:     <AWS_ACCESS_KEY_ID from step 6>
-   # Secret Access Key: <AWS_SECRET_ACCESS_KEY from step 6>
-   # Region:            us-east-1
-   export AWS_PROFILE=fx-trade-opensearch
-   ```
-4. **Start the local stack** as today:
-   ```bash
-   npm run localhost:app:infra:all-up      # Kafka + OpenSearch
-   npm run localhost:app:services:all-up   # 4 Spring services — now writing to AWS OpenSearch by region
-   npm run localhost:app:ui:all-up         # admin + customer portals
-   ```
-5. **Place a trade** in the customer portal — the trade flows through Kafka, the risk service classifies it, the indexer SigV4-signs the write to the AWS OpenSearch domain that matches the trade's `region` field.
-6. **Verify** the doc landed in AWS:
+   Restart both services (`npm run localhost:app:services:all-down && npm run localhost:app:services:all-up`). They now refresh from `GET /api/admin/opensearch-deployments` every 60s.
+6. **(Optional) Install the dashboards** per region: from the same admin page, click the ✨ icon on each ACTIVE deployment row. The masterdata service POSTs every NDJSON template under `fx-masterdata-service/src/main/resources/dashboards/` to that domain's `/_dashboards/api/saved_objects/_import`. **Note:** AWS managed clusters require Fine-Grained Access Control (FGAC) for this — without it the import returns *anonymous-not-authorized*. See `docs/design/` for the FGAC enablement plan.
+7. **Place a trade** in the customer portal ([http://localhost:4201](http://localhost:4201)) — the trade flows through Kafka, the risk service classifies it, the indexer SigV4-signs the write to the AWS OpenSearch domain that matches the trade's `region` field.
+8. **Verify** the document landed:
    ```bash
    curl -X GET "https://<your-domain-endpoint>/fx-trades-us-east-1/_search" \
      --aws-sigv4 "aws:amz:us-east-1:es" \
      --user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY"
    ```
 
+**Option B — static YAML backends (legacy / debugging).** Keep `fx.opensearch.source.type: yaml` and edit the `backends:` list by hand. Useful when you don't want masterdata in the loop. See [`middleware/fx-trade-service/src/main/resources/application.yml`](middleware/fx-trade-service/src/main/resources/application.yml) for the inline example.
+
 ### What comes after that
 
-The full implementation roadmap (11 phases, ~70 tasks) lives in [`README_OpenSearch_Core_Impl_DevPlan.md`](README_OpenSearch_Core_Impl_DevPlan.md). Key upcoming phases:
+The full implementation roadmap (11 phases, ~70 tasks) lives in [`README_OpenSearch_Core_Impl_DevPlan.md`](README_OpenSearch_Core_Impl_DevPlan.md). Status of the user-visible pieces:
 
-| Phase | Adds | Why you'd want it |
-|---|---|---|
-| **Phase 2** | `fx-search-client` factory module | Unlocks step 11 above |
-| **Phase 3** | Indexer multi-region routing            | Per-region writes work end-to-end |
-| **Phase 4** | Trade-service search API refactor       | Search by region from the app |
-| **Phase 5** | Customer entity + region binding        | Customers tied to a home region |
-| **Phase 6** | Admin portal Trades Search view         | In-portal multi-region search UI |
-| **Phase 8** | AWS OpenSearch UI app cross-region setup | The headline demo — single UI federating across regions |
+| Phase | Status |
+|---|---|
+| Phase 2 — `fx-search-client` factory module | ✅ Shipped |
+| Phase 3 — Indexer multi-region routing | ✅ Shipped |
+| Phase 4 — Trade-service search API refactor | ✅ Shipped |
+| Phase 5 — Customer entity + region binding | ⏳ Pending |
+| Phase 6 — Admin portal Trades Search view | ⏳ Pending |
+| Phase 8 — AWS OpenSearch UI app cross-region setup | ⏳ Pending (the headline demo) |
+| Beyond the plan — Admin OpenSearch deployments tracking, sync, dashboard install, masterdata-driven backend resolution, Postgres prod-shape migration runner | ✅ Shipped |
 
 The architectural reasoning behind each decision is in the **Reference** sections below (Deployment modes, Provider abstraction, Pagination strategy, Open design decisions) and the design doc [`docs/design/AWS-OpenSearch-Cross-Region-Use-Cases.md`](docs/design/AWS-OpenSearch-Cross-Region-Use-Cases.md).
 
