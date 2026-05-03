@@ -5,6 +5,13 @@ spring:
   application:
     name: fx-masterdata-service
 
+  # Optionally import a developer-local file with AWS bootstrap credentials.
+  # The file is gitignored — see application-local-secrets-template.yml for
+  # the structure. The leading 'optional:' means missing-file is OK in
+  # environments that get credentials another way (env vars, ECS task role).
+  config:
+    import: 'optional:file:./application-local-secrets.yml'
+
   # Default profile = H2 in-memory (zero infra). Use --spring.profiles.active=postgres to switch.
   datasource:
     url: jdbc:h2:mem:fxmasterdata;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
@@ -46,6 +53,27 @@ springdoc:
     path: /swagger-ui.html
     operations-sorter: alpha
     tags-sorter: alpha
+
+# AWS settings used by the OpenSearch deployment sync feature
+# (POST /api/admin/opensearch-deployments/sync). Credentials are picked up
+# from application-local-secrets.yml when present (see template); otherwise
+# the AWS SDK falls back to the default chain (env vars, ~/.aws/credentials,
+# ECS task role, etc.).
+fx:
+  aws:
+    regions:
+      - us-east-1
+      - us-west-2
+      - sa-east-1
+      - eu-west-2
+      - eu-central-1
+      - ap-south-1
+      - ap-southeast-1
+      - ap-northeast-1
+    # access-key + secret-key intentionally NOT set here.
+    # Override via application-local-secrets.yml or env vars.
+    access-key:
+    secret-key:
 
 ---
 spring:

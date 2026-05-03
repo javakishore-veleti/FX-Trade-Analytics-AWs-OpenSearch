@@ -9,3 +9,5 @@ databaseChangeLog:
       file: db/changelog/changes/004-seed-currencies.yaml
   - include:
       file: db/changelog/changes/005-seed-currency-pairs.yaml
+  - include:
+      file: db/changelog/changes/006-create-opensearch-deployments.yaml

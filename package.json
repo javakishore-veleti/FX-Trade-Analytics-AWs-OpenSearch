@@ -31,7 +31,10 @@
     "fx:stop": "pm2 delete all && npm run local:docker:down",
 
     "setup:aws:iam-all": "bash .github/aws/scripts/aws-iam-setup.sh",
-    "destroy:aws:iam-all": "bash .github/aws/scripts/aws-iam-destroy.sh"
+    "destroy:aws:iam-all": "bash .github/aws/scripts/aws-iam-destroy.sh",
+
+    "local:app:generate-app-secrets-yaml": "bash .github/aws/scripts/generate-local-secrets.sh",
+    "local:app:generate-app-secrets-yaml-help": "bash .github/aws/scripts/generate-local-secrets.sh --help"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"

@@ -53,12 +53,13 @@ Preserve this event-driven decoupling. Do **not** collapse services into direct 
   - `fx-trade-service/` — REST entry point + Kafka producer + OpenSearch search API (port **8080**)
   - `fx-risk-service/` — Kafka consumer, risk classifier, enriched producer, DLQ (port **8081**)
   - `fx-opensearch-indexer/` — Kafka consumer → OpenSearch indexing (port **8082**). Routes writes by `trade.region` via the `OpenSearchClientFactory` (in `fx-search-client`).
-  - `fx-search-client/` — provider-agnostic OpenSearch client factory used by both `fx-trade-service` (search path) and `fx-opensearch-indexer` (write path). Reads `fx.opensearch.backends` from `application.yml` (a list of `{region, provider: local|aws, endpoint}`); returns a region-keyed singleton `OpenSearchClient` from `opensearch-java` 2.10. Transport is `ApacheHttpClient5TransportBuilder` for `local`, `AwsSdk2Transport` (SigV4 via `DefaultCredentialsProvider`) for `aws`. **Same code path in local dev and ECS — only YAML changes.**
-  - `fx-masterdata-service/` — JPA/REST CRUD for currencies, currency pairs, trade books (port **8083**). Layered: `api/` → `service/` (interface) + `service/impl/` → `repository/` (Spring Data JPA) → `entity/`. H2 in-memory by default; `--spring.profiles.active=postgres` switches to `localhost:5432/fxdb`. **Schema and seed are owned by Liquibase** (changelog at `src/main/resources/db/changelog/db.changelog-master.yaml`); Hibernate runs in `validate` mode and never alters DDL. To add a new migration: drop a new YAML file in `db/changelog/changes/` and add an `include` line in the master changelog. OpenAPI/Swagger at `/swagger-ui.html`.
+  - `fx-search-client/` — provider-agnostic OpenSearch client factory used by `fx-trade-service` (search path) and `fx-opensearch-indexer` (write path). Reads `fx.opensearch.backends` from `application.yml` (a list of `{region, provider: local|aws, endpoint}`); returns a region-keyed singleton `OpenSearchClient` from `opensearch-java` 2.10. Transport is `ApacheHttpClient5TransportBuilder` for `local`, `AwsSdk2Transport` (SigV4) for `aws`. AWS credentials come from `AwsCredentialsProperties` (`fx.aws.access-key/secret-key` → `StaticCredentialsProvider`) when set, else `DefaultCredentialsProvider` chain. The `AwsCredentialsProvider` bean is `@ConditionalOnMissingBean`, so a service that defines its own (e.g. masterdata's `AwsClientsConfig`) wins and shares one provider across both code paths. **Same code path in local dev and ECS — only YAML changes.**
+  - `fx-masterdata-service/` — JPA/REST CRUD for currencies, currency pairs, trade books (port **8083**) **plus** an Administration page that tracks AWS OpenSearch deployments (managed clusters + serverless collections). Layered: `api/` → `service/` (interface) + `service/impl/` → `repository/` (Spring Data JPA) → `entity/`. H2 in-memory by default; `--spring.profiles.active=postgres` switches to `localhost:5432/fxdb`. **Schema and seed are owned by Liquibase** (changelog at `src/main/resources/db/changelog/db.changelog-master.yaml`); Hibernate runs in `validate` mode and never alters DDL. To add a new migration: drop a new YAML file in `db/changelog/changes/` and add an `include` line in the master changelog. OpenAPI/Swagger at `/swagger-ui.html`.
+    - **OpenSearch deployments tracking** (table `opensearch_deployments`, migration `006-create-opensearch-deployments.yaml`): `OpenSearchDeploymentSyncService` calls AWS `OpenSearchClient.listDomainNames` + `OpenSearchServerlessClient.listCollections` per region in `fx.aws.regions`, upserts each row by `(cloud_provider, deployment_name, region)`, marks stale rows `INACTIVE`. Status mapping: managed `processing/created/deleted` → `ACTIVE/PROCESSING/INACTIVE`; serverless `ACTIVE/CREATING/DELETING/FAILED` → `ACTIVE/PROCESSING/PROCESSING/ERROR`. The full `describe-*` response is stored as JSON in `config_json` so the endpoint is recoverable without re-calling AWS. Endpoints: `GET /api/admin/opensearch-deployments` (DB read), `POST .../sync?region=us-east-1`, `POST .../sync-all`. The DTO synthesizes click-through `dashboardsUrl` (`{endpoint}/_dashboards`) and `awsConsoleUrl` (region-specific deep link to the AWS Console). **The dashboards link will hit "User: anonymous is not authorized" until FGAC is enabled on each domain — that's a separate planned change.**
 - **`devops/local/`** — Docker Compose stacks for Kafka, OpenSearch, Postgres, observability, plus orchestration scripts
 - **`fx-admin-ui/`** — legacy minimal static React-via-CDN admin page (kept for reference; superseded by `portals/`)
 - **`portals/`** — Angular 21 workspace with two apps:
-  - `projects/admin-portal/` (port **4200**) — CRUD for currencies, currency-pairs, trade-books. Proxies `/api/master/*` → `localhost:8083`.
+  - `projects/admin-portal/` (port **4200**) — Master Data CRUD (currencies, currency-pairs, trade-books) + **Administration → OpenSearch (AWS)** page (lists tracked deployments, sync button per region + sync-all, click-through to OpenSearch Dashboards and the AWS Console). Proxies `/api/master/*` and `/api/admin/*` → `localhost:8083`.
   - `projects/customer-portal/` (port **4201**) — Place Trade form (driven by master-data pairs) + Recent Trades view. Proxies `/api/master/*` → `:8083`, `/api/trades` and `/trades` → `:8080`.
   - Standalone components, Angular Material, lazy-loaded routes. First-time setup: `npm run portals:install` from repo root.
 - **`docs/`** — architecture notes, drawio, screenshots
@@ -167,7 +168,7 @@ CORS is needed because in dev the customer portal at `:4201` posts cross-origin 
 
 ## OpenSearch wiring
 
-- All three services that talk to OpenSearch hardcode `localhost:9200` HTTP in their `OpenSearchConfig` (`RestHighLevelClient`, opensearch-rest-high-level-client 2.11.0). No auth, no TLS — local-only.
+- **Backend resolution lives in `fx-search-client`** (the `OpenSearchClientFactory` bean). `fx-trade-service` (search path) and `fx-opensearch-indexer` (write path) inject this factory and call `clientFor(region)`; both share one cached singleton client per region. Older `OpenSearchConfig` (`RestHighLevelClient` 2.11.0, hardcoded `localhost:9200`) still exists in code paths that haven't been migrated — those are local-dev only and bypass the factory.
 - Indexer writes to `fx-trades-{region}`, document id = `tradeId`, source built via `mapper.convertValue(trade, Map.class)` (so types rely on dynamic mapping unless an index template is applied first).
 - Mapping JSON: `devops/local/opensearch/mappings/fx-trades-mapping.json`. Apply it as an index template **before** any documents land, otherwise dynamic mapping will misclassify `timestamp` (long, should be date) and `riskLevel/region/tradeId` (text+keyword multi-field, should be keyword).
 - Dashboards NDJSON: `devops/local/opensearch/mappings/fx-{overview,risk,region,monitoring}.ndjson` — load via OpenSearch Dashboards → Stack Management → Saved Objects → Import. They depend on the index pattern `fx-trades-*` existing.
@@ -176,6 +177,35 @@ CORS is needed because in dev the customer portal at `:4201` posts cross-origin 
 **Gotcha — controller package**: `TradeSearchController` is in package `com.jk.fx.trade_mgmt.controller` while `TradeController` is in `...api`. Both still get scanned because the `@SpringBootApplication` is at `com.jk.fx.trade_mgmt`, but the inconsistency is real.
 
 **Gotcha — auto-generated load**: `TradeDataGenerator` is a `@Component implements CommandLineRunner` that **fires 50 random trades on every trade-service startup**. Convenient for end-to-end validation, surprising if you didn't expect it. Gate behind a profile or remove `@Component` if it gets in the way.
+
+---
+
+## Local AWS credentials (shared file)
+
+Three services need AWS credentials when their `fx.opensearch.backends` includes an `aws` provider entry, or when masterdata's deployment-sync is exercised: `fx-masterdata-service`, `fx-trade-service`, `fx-opensearch-indexer`.
+
+Rather than copy keys into three places, all three services import **one shared file at the repo root** via:
+
+```yaml
+spring:
+  config:
+    import: 'optional:file:./application-local-secrets.yml'
+```
+
+Generate it with:
+
+```bash
+# Set env vars (project-namespaced wins; AWS_* is the fallback):
+export FX_DEPLOYER_AWS_ACCESS_KEY_ID=<deployer key id>
+export FX_DEPLOYER_AWS_SECRET_ACCESS_KEY=<deployer secret>
+
+npm run local:app:generate-app-secrets-yaml      # writes ./application-local-secrets.yml at mode 600
+npm run local:app:generate-app-secrets-yaml-help # full usage doc
+```
+
+The file is **gitignored** (see `.gitignore`); the committed sibling `application-local-secrets-template.yml` documents the schema. Spring services must be launched from the repo root so the relative path resolves — the `npm run local:app:*` scripts already do this.
+
+The `optional:` prefix means a missing file is fine; the AWS SDK then falls back to `DefaultCredentialsProvider` (env vars → `~/.aws/credentials` profile → ECS task role → EC2 IMDS), which is the prod path.
 
 ---
 
@@ -188,7 +218,7 @@ CORS is needed because in dev the customer portal at `:4201` posts cross-origin 
 | Customer Portal | http://localhost:4201 |
 | Risk Service | http://localhost:8081 |
 | Indexer | http://localhost:8082 |
-| Master Data | http://localhost:8083 (Swagger: `/swagger-ui.html`, H2 console: `/h2-console`) |
+| Master Data | http://localhost:8083 (Swagger: `/swagger-ui.html`, H2 console: `/h2-console`, OpenSearch deployments admin: `GET /api/admin/opensearch-deployments`, `POST .../sync?region=...`, `POST .../sync-all`) |
 | OpenSearch | http://localhost:9200 |
 | OpenSearch Dashboards | http://localhost:5601 |
 | Grafana | http://localhost:3000 |

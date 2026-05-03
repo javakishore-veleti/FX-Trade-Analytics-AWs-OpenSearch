@@ -1,0 +1,72 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-create-opensearch-deployments
+      author: fx-team
+      changes:
+        - createTable:
+            tableName: opensearch_deployments
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: cloud_provider
+                  type: VARCHAR(20)
+                  remarks: 'aws | azure | gcp | local'
+                  constraints:
+                    nullable: false
+              - column:
+                  name: provision_type
+                  type: VARCHAR(20)
+                  remarks: 'managed | serverless | local-docker — AWS managed clusters and AWS Serverless collections have different APIs, endpoints, and SigV4 service names ("es" vs "aoss")'
+                  constraints:
+                    nullable: false
+              - column:
+                  name: deployment_name
+                  type: VARCHAR(120)
+                  remarks: 'For AWS managed: domain name. For AWS serverless: collection name. For local: docker container name.'
+                  constraints:
+                    nullable: false
+              - column:
+                  name: region
+                  type: VARCHAR(40)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  remarks: 'ACTIVE | PROCESSING | INACTIVE | ERROR'
+                  constraints:
+                    nullable: false
+              - column:
+                  name: config_json
+                  type: CLOB
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_on
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_on
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: synced_on
+                  type: TIMESTAMP
+        - addUniqueConstraint:
+            tableName: opensearch_deployments
+            columnNames: cloud_provider, deployment_name, region
+            constraintName: uk_opensearch_deployment
+        - createIndex:
+            tableName: opensearch_deployments
+            indexName: idx_opensearch_deployment_region
+            columns:
+              - column:
+                  name: region

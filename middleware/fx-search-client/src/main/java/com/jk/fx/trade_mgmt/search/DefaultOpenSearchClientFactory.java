@@ -10,6 +10,7 @@ import org.opensearch.client.transport.OpenSearchTransport;
 import org.opensearch.client.transport.aws.AwsSdk2Transport;
 import org.opensearch.client.transport.aws.AwsSdk2TransportOptions;
 import org.opensearch.client.transport.httpclient5.ApacheHttpClient5TransportBuilder;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
@@ -20,11 +21,23 @@ public class DefaultOpenSearchClientFactory implements OpenSearchClientFactory {
 
     private final Map<String, OpenSearchBackend> byRegion;
     private final Map<String, OpenSearchClient> cache = new ConcurrentHashMap<>();
+    private final AwsCredentialsProvider awsCredentialsProvider;
 
     /** Lazily-built shared SDK HTTP client for AWS-signed transports. */
     private volatile SdkHttpClient awsHttpClient;
 
+    /**
+     * Back-compat constructor used by tests / direct instantiation. Falls back
+     * to {@link DefaultCredentialsProvider} for AWS backends.
+     */
     public DefaultOpenSearchClientFactory(OpenSearchBackendsProperties props) {
+        this(props, DefaultCredentialsProvider.create());
+    }
+
+    public DefaultOpenSearchClientFactory(
+            OpenSearchBackendsProperties props,
+            AwsCredentialsProvider awsCredentialsProvider) {
+        this.awsCredentialsProvider = awsCredentialsProvider;
         if (props == null || props.getBackends() == null || props.getBackends().isEmpty()) {
             log.warn("No fx.opensearch.backends configured — OpenSearchClientFactory will reject every clientFor() call.");
             this.byRegion = Map.of();
@@ -94,7 +107,7 @@ public class DefaultOpenSearchClientFactory implements OpenSearchClientFactory {
         }
         SdkHttpClient http = ensureAwsHttpClient();
         AwsSdk2TransportOptions opts = AwsSdk2TransportOptions.builder()
-                .setCredentials(DefaultCredentialsProvider.create())
+                .setCredentials(awsCredentialsProvider)
                 .build();
         return new AwsSdk2Transport(http, hostOnly, "es", Region.of(backend.getRegion()), opts);
     }

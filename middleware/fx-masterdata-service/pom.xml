@@ -12,6 +12,7 @@
   <properties>
     <!-- 2.8.x is the line that supports Spring Boot 3.4.x. -->
     <springdoc.version>2.8.5</springdoc.version>
+    <aws.sdk.version>2.27.21</aws.sdk.version>
   </properties>
 
   <dependencies>
@@ -71,6 +72,35 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
+    </dependency>
+
+    <!-- AWS SDK v2: control-plane clients for OpenSearch managed + serverless,
+         used by the OpenSearchDeploymentSyncService to discover and describe
+         existing AWS-side deployments. -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>opensearch</artifactId>
+      <version>${aws.sdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>opensearchserverless</artifactId>
+      <version>${aws.sdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>auth</artifactId>
+      <version>${aws.sdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>regions</artifactId>
+      <version>${aws.sdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>apache-client</artifactId>
+      <version>${aws.sdk.version}</version>
     </dependency>
   </dependencies>
 

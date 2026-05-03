@@ -396,14 +396,43 @@ The script (idempotent on the first 5 steps) creates:
 - Group membership
 - A fresh access-key pair for the deployer user
 
-The new keys are printed to your terminal. Copy them into **GitHub repo secrets** (Settings → Secrets and variables → Actions → New repository secret):
+The new keys are printed to your terminal. **You'll use them twice — once for GitHub workflows, once for local Spring services.**
+
+#### 6a · Copy into GitHub repo secrets (for GitHub Actions workflows)
+
+Settings → Secrets and variables → Actions → New repository secret:
 
 | Secret name | Value |
 |---|---|
 | `AWS_ACCESS_KEY_ID`     | from script output |
 | `AWS_SECRET_ACCESS_KEY` | from script output |
 
-### 7 · Clean up
+### 7 · Generate the local secrets file (for local Spring services)
+
+The same deployer keys go into `./application-local-secrets.yml` so Spring services running on your laptop can authenticate to AWS (the OpenSearch deployment sync feature, the indexer's SigV4 writes to AWS OpenSearch, etc.). The file is **gitignored** — never checked in.
+
+Don't copy by hand — there's a generator command:
+
+```bash
+# Either project-namespaced env vars (preferred):
+export FX_DEPLOYER_AWS_ACCESS_KEY_ID=<Access key id from step 6 output>
+export FX_DEPLOYER_AWS_SECRET_ACCESS_KEY=<Secret access key from step 6 output>
+# OR standard AWS env vars (fallback):
+# export AWS_ACCESS_KEY_ID=<Access key id from step 6 output>
+# export AWS_SECRET_ACCESS_KEY=<Secret access key from step 6 output>
+
+npm run local:app:generate-app-secrets-yaml
+```
+
+The script writes `./application-local-secrets.yml` (mode `600`) and tells you what to do next. Need a refresher on env vars / what files get written?
+
+```bash
+npm run local:app:generate-app-secrets-yaml-help
+```
+
+The structure of the generated file is documented in the committed template at [`application-local-secrets-template.yml`](application-local-secrets-template.yml). Every Spring service that needs AWS credentials reads this same file via `spring.config.import: optional:file:./application-local-secrets.yml`.
+
+### 8 · Clean up
 
 ```bash
 unset FX_TRADE_ANALYTICS_AWS_ACCESS_KEY FX_TRADE_ANALYTICS_AWS_SECRET

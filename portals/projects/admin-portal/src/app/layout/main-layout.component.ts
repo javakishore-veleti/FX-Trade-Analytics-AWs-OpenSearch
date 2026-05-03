@@ -42,6 +42,14 @@ import { MatButtonModule } from '@angular/material/button';
           </a>
         </div>
 
+        <div class="nav-section">
+          <div class="nav-section__label">Administration</div>
+          <a class="nav-item" routerLink="/opensearch-deployments" routerLinkActive="nav-item--active">
+            <mat-icon>cloud</mat-icon>
+            <span>OpenSearch (AWS)</span>
+          </a>
+        </div>
+
         <div class="sidebar-foot">
           <a mat-stroked-button color="primary" href="http://localhost:8083/swagger-ui.html" target="_blank" class="full-width">
             <mat-icon>api</mat-icon> API Reference
