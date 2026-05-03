@@ -105,16 +105,27 @@ Resources:
       AccessPolicies:
         Version: '2012-10-17'
         Statement:
-          # Network-level gate: allow any IAM principal in THIS account to
-          # reach the domain endpoint. With FGAC enabled, fine-grained
-          # per-action authorization is enforced by the FGAC layer (master
-          # user, internal DB roles), not by this access policy. Identities
-          # without es:ESHttp* in their IAM policy are still denied at the
-          # IAM evaluation step before they even reach FGAC.
+          # FGAC-paired access policy. With FGAC enabled (above), the
+          # authentication layer is the FGAC master user / internal DB.
+          # The access policy here is the network-level gate ONLY — it
+          # decides whether the request even reaches the FGAC layer.
+          #
+          # Why Principal: '*' (open) is the right call HERE specifically:
+          # browsers can't sign requests with SigV4, so they always arrive
+          # as 'anonymous'. If the access policy denies anonymous, the
+          # browser request is rejected BEFORE FGAC ever sees it, and
+          # users get the 'no resource-based policy allows es:ESHttpGet'
+          # error on /_dashboards. Opening the access policy lets the
+          # request through to FGAC, which then enforces real auth via
+          # the master user / password login form.
+          #
+          # Action is scoped to es:ESHttp* (data-plane HTTP only), NOT
+          # es:* — so the open access policy can never grant control-plane
+          # operations like creating/deleting domains, even by mistake.
           - Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
-            Action: es:*
+              AWS: '*'
+            Action: 'es:ESHttp*'
             Resource: '*'
       Tags:
         - Key: Project
