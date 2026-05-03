@@ -21,3 +21,27 @@ management:
   endpoint:
     prometheus:
       enabled: true
+
+# OpenSearch backends. Add one entry per region the indexer should write to.
+# The indexer routes each trade by trade.region — that field MUST match a
+# region key here. For local dev with a single localhost OpenSearch, one
+# 'local' backend is enough.
+#
+# To run local compute writing to AWS OpenSearch domains, replace each
+# entry's provider with 'aws' and endpoint with the domain URL from the
+# CloudFormation 004-AWS-Setup-Region-OpenSearch stack outputs. AWS auth
+# uses your default credentials chain (e.g. ~/.aws/credentials profile or
+# AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY env vars).
+fx:
+  opensearch:
+    backends:
+      - region: us-east-1
+        provider: local
+        endpoint: http://localhost:9200
+      # Examples for the AWS-OpenSearch-from-laptop story:
+      # - region: us-east-1
+      #   provider: aws
+      #   endpoint: https://fxs-dev-us-east-1-XXXXXX.us-east-1.es.amazonaws.com
+      # - region: eu-west-2
+      #   provider: aws
+      #   endpoint: https://fxs-dev-eu-west-2-YYYYYY.eu-west-2.es.amazonaws.com

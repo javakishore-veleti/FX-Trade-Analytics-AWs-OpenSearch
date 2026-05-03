@@ -1,0 +1,87 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.jk.fx.trade_mgmt</groupId>
+    <artifactId>middleware-parent</artifactId>
+    <version>1.0.0</version>
+  </parent>
+
+  <artifactId>fx-search-client</artifactId>
+  <name>fx-search-client</name>
+  <description>
+    Provider-agnostic OpenSearch client factory. Returns a region-keyed
+    singleton OpenSearchClient whose transport is chosen by the backend's
+    `provider` field — `local` uses Apache HTTP, `aws` uses SigV4-signed
+    requests via AwsSdk2Transport. Same code in both local dev and ECS.
+  </description>
+
+  <properties>
+    <opensearch.java.version>2.10.0</opensearch.java.version>
+    <aws.sdk.version>2.27.21</aws.sdk.version>
+  </properties>
+
+  <dependencies>
+    <!-- Spring Boot for @ConfigurationProperties + @Configuration wiring. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+    </dependency>
+
+    <!-- The new, supported OpenSearch Java client (replaces the deprecated
+         opensearch-rest-high-level-client). Includes both Apache HTTP and
+         AwsSdk2 transport classes. -->
+    <dependency>
+      <groupId>org.opensearch.client</groupId>
+      <artifactId>opensearch-java</artifactId>
+      <version>${opensearch.java.version}</version>
+    </dependency>
+    <!-- Apache httpclient5 — required by opensearch-java's
+         ApacheHttpClient5TransportBuilder. Marked provided in opensearch-java's
+         POM so we have to declare it explicitly. -->
+    <dependency>
+      <groupId>org.apache.httpcomponents.client5</groupId>
+      <artifactId>httpclient5</artifactId>
+    </dependency>
+
+    <!-- AWS SDK v2 — needed by AwsSdk2Transport for SigV4 signing. -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>auth</artifactId>
+      <version>${aws.sdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>apache-client</artifactId>
+      <version>${aws.sdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>regions</artifactId>
+      <version>${aws.sdk.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

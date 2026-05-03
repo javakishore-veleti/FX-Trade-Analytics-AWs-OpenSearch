@@ -119,13 +119,13 @@ Phases 2, 3, 4, 5, 7, 10 can largely proceed in parallel once decisions are clos
 
 | ID | Status | Task | Notes |
 |---|---|---|---|
-| T2.1 | ⏸ | Create `middleware/fx-search-client/` Maven module + parent POM wire-up | Blocked on D-13 |
-| T2.2 | ☐ | Define `OpenSearchBackend` config record (region, provider, endpoint) + `@ConfigurationProperties("fx.opensearch")` binding | — |
-| T2.3 | ⏸ | Define `OpenSearchClientFactory` interface + Spring impl (singleton beans keyed by region) | Blocked on D-7 |
-| T2.4 | ⏸ | Implement transport selection: `local` → Apache HTTP, `aws` → `AwsSdk2Transport` with default credentials provider | Blocked on D-3, D-7 |
-| T2.5 | ☐ | Define `IndexRequest`, `SearchRequest`, `SearchResponse` DTOs (region, optional provider override, payload, pagination) | — |
-| T2.6 | ☐ | Add `OpenSearchClientFactory.clientFor(region)` lookup with a clear error when the region is not configured | — |
-| T2.7 | ☐ | Wire `fx-search-client` as dependency of `fx-trade-service` and `fx-opensearch-indexer`; remove the per-service `OpenSearchConfig` classes | — |
+| T2.1 | ✅ | Create `middleware/fx-search-client/` Maven module + parent POM wire-up | Module added to `middleware/pom.xml`; opensearch-java 2.10 + AWS SDK v2 deps |
+| T2.2 | ✅ | Define `OpenSearchBackend` config record (region, provider, endpoint) + `@ConfigurationProperties("fx.opensearch")` binding | `OpenSearchBackend` + `OpenSearchBackendsProperties` |
+| T2.3 | ✅ | Define `OpenSearchClientFactory` interface + Spring impl (singleton beans keyed by region) | Interface + `DefaultOpenSearchClientFactory` with `ConcurrentHashMap`-backed cache; `SearchClientAutoConfiguration` registers the bean |
+| T2.4 | ✅ | Implement transport selection: `local` → Apache HTTP, `aws` → `AwsSdk2Transport` with default credentials provider | One SDK (opensearch-java) with two transports per design D-7 |
+| T2.5 | ⛔ | Define `IndexRequest`, `SearchRequest`, `SearchResponse` DTOs | Skipped — opensearch-java's native types serve well enough; revisit if a leaky-abstraction problem appears |
+| T2.6 | ✅ | Add `OpenSearchClientFactory.clientFor(region)` lookup with a clear error when the region is not configured | `IllegalArgumentException` with the configured-region set in the message |
+| T2.7 | ✅ | Wire `fx-search-client` as dependency of `fx-trade-service` and `fx-opensearch-indexer`; remove the per-service `OpenSearchConfig` classes | Both services now depend on `fx-search-client`; old `OpenSearchConfig.java` deleted from both |
 
 ### Acceptance criteria
 
@@ -143,11 +143,11 @@ Phases 2, 3, 4, 5, 7, 10 can largely proceed in parallel once decisions are clos
 
 | ID | Status | Task | Notes |
 |---|---|---|---|
-| T3.1 | ⏸ | Wire `OpenSearchClientFactory` into `OpenSearchService`; remove the hardcoded single-client field | Blocked on T2.7, D-2 |
-| T3.2 | ☐ | In `OpenSearchService.indexTrade(trade)` route writes to `factory.clientFor(trade.region)` | — |
-| T3.3 | ☐ | Index name is `fx-trades-{trade.region}` (already convention; verify) | — |
-| T3.4 | ☐ | Error handling: unknown region → log + send to existing `trade-index-dlq` (DLQ recoverer already in `KafkaErrorConfig`) | — |
-| T3.5 | ☐ | Smoke test: trade with `region=eu-west-1` written via local-dev profile lands in the `eu-west-1` AWS OpenSearch domain (visible from AWS console) | Needs Phase 1 + AWS profile |
+| T3.1 | ✅ | Wire `OpenSearchClientFactory` into `OpenSearchService`; remove the hardcoded single-client field | New `OpenSearchService.java` uses `clientFactory.clientFor(trade.region)` |
+| T3.2 | ✅ | In `OpenSearchService.indexTrade(trade)` route writes to `factory.clientFor(trade.region)` | Blank/null region rejected with `IllegalArgumentException` |
+| T3.3 | ✅ | Index name is `fx-trades-{trade.region}` | Verified — convention preserved |
+| T3.4 | ✅ | Error handling: unknown region → throws (then DLQ via existing `KafkaErrorConfig` retry-then-recover) | `IllegalArgumentException` propagates through Spring Kafka's `DefaultErrorHandler` → 3 retries → `trade-index-dlq` |
+| T3.5 | ☐ | Smoke test: trade with `region=eu-west-1` written via local-dev profile lands in the `eu-west-1` AWS OpenSearch domain (visible from AWS console) | **You** — once you've populated `fx.opensearch.backends` with AWS endpoints, run the local indexer + send a trade |
 
 ### Acceptance criteria
 

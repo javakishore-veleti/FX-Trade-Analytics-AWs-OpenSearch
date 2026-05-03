@@ -1,67 +1,95 @@
 package com.jk.fx.trade_mgmt.service;
 
+import com.jk.fx.trade_mgmt.search.OpenSearchClientFactory;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
-import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.RequestOptions;
-import org.opensearch.client.RestHighLevelClient;
-import org.opensearch.index.query.BoolQueryBuilder;
-import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.search.SearchHit;
-import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.search.sort.SortOrder;
+import lombok.extern.slf4j.Slf4j;
+import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch._types.FieldValue;
+import org.opensearch.client.opensearch._types.SortOrder;
+import org.opensearch.client.opensearch._types.query_dsl.Query;
+import org.opensearch.client.opensearch.core.SearchResponse;
+import org.opensearch.client.opensearch.core.search.Hit;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TradeSearchService {
 
-    private final RestHighLevelClient client;
+    private final OpenSearchClientFactory clientFactory;
 
-    /** Legacy: kept for backward compatibility with existing UI/tests. */
+    /**
+     * Legacy: kept for backward compatibility with the existing UI / smoke
+     * tests. Targets the {@link #defaultRegion()} backend.
+     */
     public String searchByRisk(String risk) {
+        List<Map<String, Object>> hits = search(risk, defaultRegion(), 50);
+        return "Found " + hits.size() + " trade(s) with riskLevel=" + risk;
+    }
+
+    /**
+     * Single-region search. {@code region} drives BOTH which OpenSearch
+     * domain to hit AND which index to query ({@code fx-trades-{region}}).
+     *
+     * <p>Cross-region "All regions" search is intentionally NOT supported here
+     * — that's the AWS OpenSearch UI's federation responsibility (see the
+     * design doc {@code docs/design/AWS-OpenSearch-Cross-Region-Use-Cases.md}).
+     */
+    public List<Map<String, Object>> search(String risk, String region, int size) {
+        if (region == null || region.isBlank()) {
+            region = defaultRegion();
+        }
+        final String chosenRegion = region;
+        final String indexName = "fx-trades-" + chosenRegion;
+        final int safeSize = Math.min(Math.max(size, 1), 200);
+
         try {
-            SearchRequest request = new SearchRequest("fx-trades-*");
-            SearchSourceBuilder builder = new SearchSourceBuilder()
-                    .query(QueryBuilders.matchQuery("riskLevel", risk));
-            request.source(builder);
-            return client.search(request, RequestOptions.DEFAULT).toString();
+            OpenSearchClient client = clientFactory.clientFor(chosenRegion);
+
+            // Compose query
+            List<Query> mustClauses = new ArrayList<>();
+            if (risk != null && !risk.isBlank()) {
+                final String riskUp = risk.toUpperCase();
+                mustClauses.add(Query.of(q -> q.term(t -> t
+                        .field("riskLevel")
+                        .value(FieldValue.of(riskUp)))));
+            }
+
+            SearchResponse<Map> resp = client.search(s -> s
+                            .index(indexName)
+                            .size(safeSize)
+                            .sort(so -> so.field(f -> f.field("timestamp").order(SortOrder.Desc)))
+                            .query(q -> q.bool(b -> {
+                                if (mustClauses.isEmpty()) {
+                                    b.must(Query.of(qq -> qq.matchAll(m -> m)));
+                                } else {
+                                    b.must(mustClauses);
+                                }
+                                return b;
+                            })),
+                    Map.class);
+
+            List<Map<String, Object>> out = new ArrayList<>(resp.hits().hits().size());
+            for (Hit<Map> h : resp.hits().hits()) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> source = h.source() != null ? new HashMap<>(h.source()) : new HashMap<>();
+                source.put("_id", h.id());
+                out.add(source);
+            }
+            log.debug("Search region={} risk={} → {} hits", chosenRegion, risk, out.size());
+            return out;
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException(
+                    "OpenSearch search failed for region " + chosenRegion + " (index=" + indexName + ")", e);
         }
     }
 
-    public List<Map<String, Object>> search(String risk, String region, int size) {
-        try {
-            BoolQueryBuilder bool = QueryBuilders.boolQuery();
-            if (risk != null && !risk.isBlank()) {
-                bool.must(QueryBuilders.termQuery("riskLevel", risk.toUpperCase()));
-            }
-            if (region != null && !region.isBlank()) {
-                bool.must(QueryBuilders.termQuery("region", region));
-            }
-            if (!bool.hasClauses()) {
-                bool.must(QueryBuilders.matchAllQuery());
-            }
-
-            SearchSourceBuilder src = new SearchSourceBuilder()
-                    .query(bool)
-                    .size(Math.min(Math.max(size, 1), 200))
-                    .sort("timestamp", SortOrder.DESC);
-
-            SearchRequest req = new SearchRequest("fx-trades-*").source(src);
-            SearchResponse resp = client.search(req, RequestOptions.DEFAULT);
-
-            List<Map<String, Object>> hits = new ArrayList<>();
-            for (SearchHit h : resp.getHits().getHits()) {
-                hits.add(h.getSourceAsMap());
-            }
-            return hits;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    /** Sane fallback so existing single-region callers still work without supplying region. */
+    private String defaultRegion() {
+        return "us-east-1";
     }
 }

@@ -16,6 +16,7 @@
 
   <modules>
     <module>fx-common</module>
+    <module>fx-search-client</module>
     <module>fx-trade-service</module>
     <module>fx-risk-service</module>
     <module>fx-opensearch-indexer</module>

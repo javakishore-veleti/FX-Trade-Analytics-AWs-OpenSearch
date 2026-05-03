@@ -18,9 +18,9 @@
       <artifactId>spring-kafka</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.opensearch.client</groupId>
-      <artifactId>opensearch-rest-high-level-client</artifactId>
-      <version>2.11.0</version>
+      <groupId>com.jk.fx.trade_mgmt</groupId>
+      <artifactId>fx-search-client</artifactId>
+      <version>1.0.0</version>
     </dependency>
     <dependency>
       <groupId>com.jk.fx.trade_mgmt</groupId>

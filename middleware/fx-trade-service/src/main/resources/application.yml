@@ -51,3 +51,20 @@ fx:
     allowed-origins:
       - http://localhost:4200
       - http://localhost:4201
+  # OpenSearch backends per region. Search hits the domain matching the
+  # request's `region` parameter; index name is fx-trades-{region}. Same
+  # block must exist in fx-opensearch-indexer/application.yml so writes
+  # and reads route to the same endpoints.
+  opensearch:
+    backends:
+      - region: us-east-1
+        provider: local
+        endpoint: http://localhost:9200
+      # AWS-OpenSearch-from-laptop example (uncomment + fill with real domain
+      # endpoints from your `004-AWS-Setup-Region-OpenSearch` workflow output):
+      # - region: us-east-1
+      #   provider: aws
+      #   endpoint: https://fxs-dev-us-east-1-XXXXXX.us-east-1.es.amazonaws.com
+      # - region: eu-west-2
+      #   provider: aws
+      #   endpoint: https://fxs-dev-eu-west-2-YYYYYY.eu-west-2.es.amazonaws.com
