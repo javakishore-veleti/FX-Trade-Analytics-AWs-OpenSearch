@@ -115,7 +115,6 @@ jobs:
               InstanceType=${{ inputs.instance_type }} \
               InstanceCount=${{ inputs.instance_count }} \
               EbsVolumeSizeGB=${{ inputs.ebs_volume_size_gb }} \
-              AccessRoleArn=${{ secrets.AWS_ROLE_ARN }} \
             --no-fail-on-empty-changeset \
             --tags Project=fx-trade-analytics Environment=${{ inputs.environment }} Region=${{ matrix.region }}
 

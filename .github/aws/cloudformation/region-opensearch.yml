@@ -45,13 +45,6 @@ Parameters:
     Type: String
     Default: OpenSearch_2.13
 
-  AccessRoleArn:
-    Type: String
-    Description: |
-      ARN of the IAM role allowed to read/write this domain. Typically the
-      GitHub Actions deployer role for the demo; tighten to per-service roles
-      for production.
-
 Resources:
   Domain:
     Type: AWS::OpenSearchService::Domain
@@ -79,12 +72,16 @@ Resources:
       AccessPolicies:
         Version: '2012-10-17'
         Statement:
+          # Allow any IAM principal in THIS account to attempt access; whether
+          # they actually can do an es:* action is enforced by the IAM policy
+          # attached to the user / group / role making the call. The deployer
+          # user (fx-trade-opensearch-github-deployer) has es:* on its IAM
+          # policy, so it can reach this domain. Identities without es:* in
+          # their IAM policy are denied at the IAM evaluation step.
           - Effect: Allow
             Principal:
-              AWS: !Ref AccessRoleArn
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
             Action: es:*
-            # Implicit per-resource scoping: the policy is attached to this
-            # domain, so es:* is naturally limited to this domain's ARN.
             Resource: '*'
       Tags:
         - Key: Project
