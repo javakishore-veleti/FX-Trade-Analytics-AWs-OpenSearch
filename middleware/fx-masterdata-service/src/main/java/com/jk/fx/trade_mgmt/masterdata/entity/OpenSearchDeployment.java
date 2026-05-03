@@ -63,8 +63,19 @@ public class OpenSearchDeployment {
     private String status;
 
     /**
-     * Full AWS describe-* response serialised as JSON. Includes endpoints,
-     * cluster config, EBS settings, encryption options, access policies, etc.
+     * Canonical HTTPS endpoint from the AWS control-plane API.
+     * Managed:    {@code DomainStatus.endpoint()} → {@code search-...amazonaws.com}.
+     * Serverless: {@code CollectionDetail.collectionEndpoint()} → {@code https://....aoss.amazonaws.com}.
+     * Consumed by fx-search-client when {@code fx.opensearch.source.type=masterdata}
+     * to construct region-keyed OpenSearchClient instances at runtime.
+     */
+    @Column(name = "endpoint", length = 500)
+    private String endpoint;
+
+    /**
+     * Full AWS describe-* response serialised as JSON. Debug / human-readable
+     * blob — first-class fields like {@link #endpoint} should be promoted out
+     * of here when callers need them programmatically.
      */
     @Column(name = "config_json", nullable = false, columnDefinition = "CLOB")
     private String configJson;

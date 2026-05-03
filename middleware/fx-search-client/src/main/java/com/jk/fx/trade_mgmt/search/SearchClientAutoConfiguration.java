@@ -25,7 +25,11 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
  */
 @Slf4j
 @AutoConfiguration
-@EnableConfigurationProperties({OpenSearchBackendsProperties.class, AwsCredentialsProperties.class})
+@EnableConfigurationProperties({
+        OpenSearchBackendsProperties.class,
+        AwsCredentialsProperties.class,
+        BackendsSourceProperties.class
+})
 public class SearchClientAutoConfiguration {
 
     /**
@@ -50,10 +54,35 @@ public class SearchClientAutoConfiguration {
         return DefaultCredentialsProvider.create();
     }
 
+    /**
+     * Backend resolution strategy. Default {@code yaml} reads
+     * {@code fx.opensearch.backends} from {@code application.yml};
+     * {@code masterdata} hits the masterdata REST endpoint and refreshes
+     * every {@code fx.opensearch.source.ttl-seconds} seconds.
+     */
+    @Bean
+    @ConditionalOnMissingBean(BackendsSource.class)
+    public BackendsSource backendsSource(
+            BackendsSourceProperties sourceProps,
+            OpenSearchBackendsProperties yamlProps) {
+        return switch (sourceProps.getType()) {
+            case masterdata -> {
+                log.info("fx-search-client: BackendsSource = masterdata ({}), ttl={}s",
+                        sourceProps.getMasterdataUrl(), sourceProps.getTtlSeconds());
+                yield new MasterDataBackendsSource(sourceProps);
+            }
+            case yaml -> {
+                int n = yamlProps.getBackends() == null ? 0 : yamlProps.getBackends().size();
+                log.info("fx-search-client: BackendsSource = yaml ({} entries from fx.opensearch.backends)", n);
+                yield new YamlBackendsSource(yamlProps);
+            }
+        };
+    }
+
     @Bean
     public OpenSearchClientFactory openSearchClientFactory(
-            OpenSearchBackendsProperties props,
+            BackendsSource backendsSource,
             AwsCredentialsProvider awsCredentialsProvider) {
-        return new DefaultOpenSearchClientFactory(props, awsCredentialsProvider);
+        return new DefaultOpenSearchClientFactory(backendsSource, awsCredentialsProvider);
     }
 }

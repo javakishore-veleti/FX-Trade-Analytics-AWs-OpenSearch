@@ -11,3 +11,5 @@ databaseChangeLog:
       file: db/changelog/changes/005-seed-currency-pairs.yaml
   - include:
       file: db/changelog/changes/006-create-opensearch-deployments.yaml
+  - include:
+      file: db/changelog/changes/007-add-endpoint-to-opensearch-deployments.yaml

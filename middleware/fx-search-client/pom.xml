@@ -28,6 +28,15 @@
       <artifactId>spring-boot-autoconfigure</artifactId>
     </dependency>
 
+    <!-- Jackson for parsing the masterdata REST response in MasterDataBackendsSource.
+         All consuming services already pull Jackson via spring-boot-starter-web /
+         spring-boot-starter-json, but declare it here so this module compiles
+         standalone. -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+
     <!-- The new, supported OpenSearch Java client (replaces the deprecated
          opensearch-rest-high-level-client). Includes both Apache HTTP and
          AwsSdk2 transport classes. -->

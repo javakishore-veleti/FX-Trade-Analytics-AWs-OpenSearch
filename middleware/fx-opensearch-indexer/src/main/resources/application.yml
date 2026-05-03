@@ -41,6 +41,14 @@ management:
 # AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY env vars).
 fx:
   opensearch:
+    # Where the indexer pulls its write-target list from.
+    #   yaml       — the static `backends:` list below (default; safe for local dev)
+    #   masterdata — call fx-masterdata-service /api/admin/opensearch-deployments
+    #                and write to every ACTIVE managed domain. Refreshed every ttl-seconds.
+    source:
+      type: yaml
+      masterdata-url: http://localhost:8083
+      ttl-seconds: 60
     backends:
       - region: us-east-1
         provider: local

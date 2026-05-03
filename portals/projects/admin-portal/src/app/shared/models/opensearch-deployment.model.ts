@@ -5,6 +5,7 @@ export interface OpenSearchDeployment {
   deploymentName: string;
   region: string;
   status: string;              // 'ACTIVE' | 'PROCESSING' | 'INACTIVE' | 'ERROR'
+  endpoint?: string;           // canonical https URL from the AWS describe-* API
   configJson?: string;
   createdOn: string;
   updatedOn: string;

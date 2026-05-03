@@ -2,6 +2,7 @@ package com.jk.fx.trade_mgmt.search;
 
 import java.net.URI;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.core5.http.HttpHost;
@@ -19,45 +20,41 @@ import software.amazon.awssdk.regions.Region;
 @Slf4j
 public class DefaultOpenSearchClientFactory implements OpenSearchClientFactory {
 
-    private final Map<String, OpenSearchBackend> byRegion;
-    private final Map<String, OpenSearchClient> cache = new ConcurrentHashMap<>();
+    private final BackendsSource source;
     private final AwsCredentialsProvider awsCredentialsProvider;
+    private final Map<String, CachedClient> cache = new ConcurrentHashMap<>();
 
     /** Lazily-built shared SDK HTTP client for AWS-signed transports. */
     private volatile SdkHttpClient awsHttpClient;
 
+    /** Snapshot of the backend used when the cached client was built; we
+     *  rebuild lazily if the source ever returns a different one for the
+     *  same region (e.g. masterdata sync swapped a domain endpoint). */
+    private record CachedClient(OpenSearchBackend backend, OpenSearchClient client) {}
+
     /**
-     * Back-compat constructor used by tests / direct instantiation. Falls back
-     * to {@link DefaultCredentialsProvider} for AWS backends.
+     * Back-compat constructor used by tests + services that still wire only
+     * {@link OpenSearchBackendsProperties} directly. Falls back to
+     * {@link DefaultCredentialsProvider} for AWS backends.
      */
     public DefaultOpenSearchClientFactory(OpenSearchBackendsProperties props) {
-        this(props, DefaultCredentialsProvider.create());
+        this(new YamlBackendsSource(props), DefaultCredentialsProvider.create());
     }
 
+    /** Back-compat: explicit credentials, YAML source. */
     public DefaultOpenSearchClientFactory(
             OpenSearchBackendsProperties props,
             AwsCredentialsProvider awsCredentialsProvider) {
+        this(new YamlBackendsSource(props), awsCredentialsProvider);
+    }
+
+    /** Primary constructor — pluggable backend source + credentials. */
+    public DefaultOpenSearchClientFactory(
+            BackendsSource source,
+            AwsCredentialsProvider awsCredentialsProvider) {
+        this.source = source;
         this.awsCredentialsProvider = awsCredentialsProvider;
-        if (props == null || props.getBackends() == null || props.getBackends().isEmpty()) {
-            log.warn("No fx.opensearch.backends configured — OpenSearchClientFactory will reject every clientFor() call.");
-            this.byRegion = Map.of();
-        } else {
-            this.byRegion = new ConcurrentHashMap<>();
-            for (OpenSearchBackend b : props.getBackends()) {
-                if (b.getRegion() == null || b.getRegion().isBlank()) {
-                    throw new IllegalStateException("fx.opensearch.backends entry missing region: " + b);
-                }
-                if (b.getEndpoint() == null || b.getEndpoint().isBlank()) {
-                    throw new IllegalStateException("fx.opensearch.backends[" + b.getRegion() + "] missing endpoint");
-                }
-                if (b.getProvider() == null) {
-                    throw new IllegalStateException("fx.opensearch.backends[" + b.getRegion() + "] missing provider (local|aws)");
-                }
-                this.byRegion.put(b.getRegion(), b);
-            }
-            log.info("OpenSearchClientFactory initialised with {} backend(s): {}",
-                    byRegion.size(), byRegion.keySet());
-        }
+        log.info("OpenSearchClientFactory initialised with source={}", source.getClass().getSimpleName());
     }
 
     @Override
@@ -65,17 +62,28 @@ public class DefaultOpenSearchClientFactory implements OpenSearchClientFactory {
         if (region == null || region.isBlank()) {
             throw new IllegalArgumentException("OpenSearchClientFactory.clientFor: region is required");
         }
-        OpenSearchBackend backend = byRegion.get(region);
-        if (backend == null) {
-            throw new IllegalArgumentException(
-                    "No OpenSearch backend configured for region '" + region + "'. Configured: " + byRegion.keySet());
+        OpenSearchBackend backend = lookup(region)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No OpenSearch backend configured for region '" + region
+                                + "'. Source: " + source.getClass().getSimpleName()));
+        CachedClient cached = cache.get(region);
+        if (cached != null && cached.backend().equals(backend)) {
+            return cached.client();
         }
-        return cache.computeIfAbsent(region, r -> build(backend));
+        OpenSearchClient fresh = build(backend);
+        cache.put(region, new CachedClient(backend, fresh));
+        return fresh;
     }
 
     @Override
     public boolean hasRegion(String region) {
-        return region != null && byRegion.containsKey(region);
+        return region != null && lookup(region).isPresent();
+    }
+
+    private Optional<OpenSearchBackend> lookup(String region) {
+        return source.load().stream()
+                .filter(b -> region.equals(b.getRegion()))
+                .findFirst();
     }
 
     private OpenSearchClient build(OpenSearchBackend backend) {

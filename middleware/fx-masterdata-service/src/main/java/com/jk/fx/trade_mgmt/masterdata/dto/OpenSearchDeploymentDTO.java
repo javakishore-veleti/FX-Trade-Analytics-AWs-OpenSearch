@@ -19,6 +19,8 @@ public class OpenSearchDeploymentDTO {
     private String deploymentName;
     private String region;
     private String status;
+    /** Canonical HTTPS endpoint reported by AWS — primary field consumed by fx-search-client. */
+    private String endpoint;
     private String configJson;
     private Instant createdOn;
     private Instant updatedOn;
@@ -38,6 +40,7 @@ public class OpenSearchDeploymentDTO {
                 .deploymentName(e.getDeploymentName())
                 .region(e.getRegion())
                 .status(e.getStatus())
+                .endpoint(endpoint)
                 .configJson(e.getConfigJson())
                 .createdOn(e.getCreatedOn())
                 .updatedOn(e.getUpdatedOn())

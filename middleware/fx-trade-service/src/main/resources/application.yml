@@ -63,6 +63,15 @@ fx:
   # block must exist in fx-opensearch-indexer/application.yml so writes
   # and reads route to the same endpoints.
   opensearch:
+    # Where the search client pulls its backend list from.
+    #   yaml       — the static `backends:` list below (default; safe for local dev)
+    #   masterdata — call fx-masterdata-service /api/admin/opensearch-deployments
+    #                and use ACTIVE managed domains. Refreshed every ttl-seconds.
+    # In AWS, set type: masterdata so the admin sync flow drives runtime backends.
+    source:
+      type: yaml
+      masterdata-url: http://localhost:8083
+      ttl-seconds: 60
     backends:
       - region: us-east-1
         provider: local

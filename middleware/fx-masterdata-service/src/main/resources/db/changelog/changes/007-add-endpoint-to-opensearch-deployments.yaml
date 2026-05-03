@@ -1,0 +1,12 @@
+databaseChangeLog:
+  - changeSet:
+      id: 007-add-endpoint-to-opensearch-deployments
+      author: fx-team
+      changes:
+        - addColumn:
+            tableName: opensearch_deployments
+            columns:
+              - column:
+                  name: endpoint
+                  type: VARCHAR(500)
+                  remarks: 'Canonical HTTPS endpoint reported by the AWS describe-* API. Managed: DomainStatus.endpoint (e.g. search-fxs-dev-us-east-1-XXXX.us-east-1.es.amazonaws.com). Serverless: CollectionDetail.collectionEndpoint (e.g. https://abc.us-east-1.aoss.amazonaws.com). Used by fx-search-client to build region-keyed OpenSearchClient instances + by the admin DTO to render the dashboards click-through.'

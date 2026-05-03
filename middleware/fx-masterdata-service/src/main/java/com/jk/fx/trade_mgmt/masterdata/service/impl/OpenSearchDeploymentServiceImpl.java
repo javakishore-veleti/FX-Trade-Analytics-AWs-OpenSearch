@@ -47,7 +47,7 @@ public class OpenSearchDeploymentServiceImpl implements OpenSearchDeploymentServ
     @Transactional(readOnly = true)
     public List<OpenSearchDeploymentDTO> list() {
         return repo.findAllByOrderByRegionAscDeploymentNameAsc().stream()
-                .map(e -> OpenSearchDeploymentDTO.of(e, extractEndpoint(e)))
+                .map(e -> OpenSearchDeploymentDTO.of(e, e.getEndpoint()))
                 .toList();
     }
 
@@ -125,7 +125,8 @@ public class OpenSearchDeploymentServiceImpl implements OpenSearchDeploymentServ
                 DomainStatus status = desc.domainStatus();
                 String mappedStatus = mapManagedStatus(status);
                 String json = serialize(status.toString());
-                upsert(CLOUD_AWS, TYPE_MANAGED, name, regionCode, mappedStatus, json);
+                String endpoint = normalizeEndpoint(status.endpoint());
+                upsert(CLOUD_AWS, TYPE_MANAGED, name, regionCode, mappedStatus, endpoint, json);
                 count++;
             }
             log.info("Region {}: discovered {} managed OpenSearch domain(s)", regionCode, count);
@@ -156,7 +157,8 @@ public class OpenSearchDeploymentServiceImpl implements OpenSearchDeploymentServ
                 seenNames.add(name);
                 String mappedStatus = mapServerlessStatus(c);
                 String json = serialize(c.toString());
-                upsert(CLOUD_AWS, TYPE_SERVERLESS, name, regionCode, mappedStatus, json);
+                String endpoint = c.collectionEndpoint();
+                upsert(CLOUD_AWS, TYPE_SERVERLESS, name, regionCode, mappedStatus, endpoint, json);
                 count++;
             }
             log.info("Region {}: discovered {} serverless collection(s)", regionCode, count);
@@ -164,7 +166,8 @@ public class OpenSearchDeploymentServiceImpl implements OpenSearchDeploymentServ
         }
     }
 
-    private void upsert(String cloud, String type, String name, String region, String status, String configJson) {
+    private void upsert(String cloud, String type, String name, String region,
+                        String status, String endpoint, String configJson) {
         OpenSearchDeployment row = repo
                 .findByCloudProviderAndProvisionTypeAndDeploymentNameAndRegion(cloud, type, name, region)
                 .orElseGet(() -> OpenSearchDeployment.builder()
@@ -174,6 +177,7 @@ public class OpenSearchDeploymentServiceImpl implements OpenSearchDeploymentServ
                         .region(region)
                         .build());
         row.setStatus(status);
+        row.setEndpoint(endpoint);
         row.setConfigJson(configJson);
         row.setSyncedOn(Instant.now());
         repo.save(row);
@@ -228,11 +232,16 @@ public class OpenSearchDeploymentServiceImpl implements OpenSearchDeploymentServ
         }
     }
 
-    private static String extractEndpoint(OpenSearchDeployment e) {
-        // The configJson currently wraps a toString blob. This is a placeholder hook —
-        // when we move to first-class endpoint extraction, parse from configJson here
-        // (DomainStatus.endpoint for managed; CollectionDetail.collectionEndpoint for
-        // serverless). Until then the controller / DTO doesn't render the link.
-        return null;
+    /**
+     * Managed-domain endpoints come back from AWS as a bare hostname
+     * ({@code search-fxs-...amazonaws.com}); promote to a full https:// URL so
+     * downstream consumers can use it directly. Serverless endpoints already
+     * include the scheme, so they pass through unchanged.
+     */
+    private static String normalizeEndpoint(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        return raw.startsWith("http://") || raw.startsWith("https://")
+                ? raw
+                : "https://" + raw;
     }
 }
