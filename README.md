@@ -417,12 +417,20 @@ The new keys are printed to your terminal. **You'll use them twice — once for 
 
 #### 6a · Copy into GitHub repo secrets (for GitHub Actions workflows)
 
-Settings → Secrets and variables → Actions → New repository secret:
+Settings → Secrets and variables → Actions → New repository secret. **Three secrets:**
 
 | Secret name | Value |
 |---|---|
-| `AWS_ACCESS_KEY_ID`     | from script output |
-| `AWS_SECRET_ACCESS_KEY` | from script output |
+| `AWS_ACCESS_KEY_ID`           | from script output (deployer key) |
+| `AWS_SECRET_ACCESS_KEY`       | from script output (deployer secret) |
+| `OPENSEARCH_MASTER_PASSWORD`  | a strong password you choose — see below |
+
+`OPENSEARCH_MASTER_PASSWORD` is the FGAC master password every regional OpenSearch domain accepts at its `/_dashboards` browser login. AWS requires:
+
+- 8 to 128 characters
+- At least one uppercase, one lowercase, one number, and one special character
+
+Pick one and store it. The default master username is `fxadmin` (overridable via the `master_username` workflow input). After the OpenSearch domain is `Active`, browse to `https://search-fxs-…amazonaws.com/_dashboards` → log in as `fxadmin` + this password. **Without this secret, the OpenSearch workflow will fail-fast in its precheck step** with a clear error message — no half-deployed domains.
 
 ### 7 · Generate the local secrets file (for local Spring services)
 
@@ -560,7 +568,7 @@ The "manually edit application.yml with each AWS endpoint" walkthrough that used
          type: masterdata          # was: yaml
    ```
    Restart both services (`npm run localhost:app:services:all-down && npm run localhost:app:services:all-up`). They now refresh from `GET /api/admin/opensearch-deployments` every 60s.
-6. **(Optional) Install the dashboards** per region: from the same admin page, click the ✨ icon on each ACTIVE deployment row. The masterdata service POSTs every NDJSON template under `fx-masterdata-service/src/main/resources/dashboards/` to that domain's `/_dashboards/api/saved_objects/_import`. **Note:** AWS managed clusters require Fine-Grained Access Control (FGAC) for this — without it the import returns *anonymous-not-authorized*. See `docs/design/` for the FGAC enablement plan.
+6. **(Optional) Install the dashboards** per region: from the same admin page, click the ✨ icon on each ACTIVE deployment row. The masterdata service POSTs every NDJSON template under `fx-masterdata-service/src/main/resources/dashboards/` to that domain's `/_dashboards/api/saved_objects/_import`. Works on any domain provisioned via the current `region-opensearch.yml` template (FGAC enabled). Then click the dashboards icon on the row to open `/_dashboards` in the browser — log in as `fxadmin` + your `OPENSEARCH_MASTER_PASSWORD`.
 7. **Place a trade** in the customer portal ([http://localhost:4201](http://localhost:4201)) — the trade flows through Kafka, the risk service classifies it, the indexer SigV4-signs the write to the AWS OpenSearch domain that matches the trade's `region` field.
 8. **Verify** the document landed:
    ```bash

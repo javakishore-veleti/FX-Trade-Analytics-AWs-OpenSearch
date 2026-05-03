@@ -45,6 +45,24 @@ Parameters:
     Type: String
     Default: OpenSearch_2.13
 
+  MasterUsername:
+    Type: String
+    Default: fxadmin
+    Description: |
+      FGAC master user for OpenSearch Dashboards browser login. Stored in the
+      domain's internal user database (no IAM/Cognito tie-in).
+
+  MasterPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 128
+    Description: |
+      FGAC master password. AWS requires 8–128 chars with at least one
+      uppercase, one lowercase, one number, and one special character.
+      Sourced from the OPENSEARCH_MASTER_PASSWORD GitHub repo secret;
+      never echoed in workflow logs (NoEcho: true).
+
 Resources:
   Domain:
     Type: AWS::OpenSearchService::Domain
@@ -69,15 +87,30 @@ Resources:
       DomainEndpointOptions:
         EnforceHTTPS: true
         TLSSecurityPolicy: Policy-Min-TLS-1-2-2019-07
+      # Fine-Grained Access Control (FGAC) — required so the OpenSearch
+      # Dashboards URL accepts a browser login. Without FGAC, hitting
+      # /_dashboards in a browser fails with 'User: anonymous is not
+      # authorized' because the browser sends no SigV4 signature. With FGAC
+      # + InternalUserDatabase, /_dashboards renders a username/password
+      # login page that accepts the MasterUsername / MasterPassword below.
+      # AWS requires the three encryption / TLS options above (EncryptionAt
+      # RestOptions, NodeToNodeEncryptionOptions, EnforceHTTPS) to be enabled
+      # before AdvancedSecurityOptions.Enabled can be true — already on.
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: true
+        MasterUserOptions:
+          MasterUserName: !Ref MasterUsername
+          MasterUserPassword: !Ref MasterPassword
       AccessPolicies:
         Version: '2012-10-17'
         Statement:
-          # Allow any IAM principal in THIS account to attempt access; whether
-          # they actually can do an es:* action is enforced by the IAM policy
-          # attached to the user / group / role making the call. The deployer
-          # user (fx-trade-opensearch-github-deployer) has es:* on its IAM
-          # policy, so it can reach this domain. Identities without es:* in
-          # their IAM policy are denied at the IAM evaluation step.
+          # Network-level gate: allow any IAM principal in THIS account to
+          # reach the domain endpoint. With FGAC enabled, fine-grained
+          # per-action authorization is enforced by the FGAC layer (master
+          # user, internal DB roles), not by this access policy. Identities
+          # without es:ESHttp* in their IAM policy are still denied at the
+          # IAM evaluation step before they even reach FGAC.
           - Effect: Allow
             Principal:
               AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"

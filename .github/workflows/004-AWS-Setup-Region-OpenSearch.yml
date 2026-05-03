@@ -37,6 +37,10 @@ on:
         description: 'EBS volume size per node (GB)'
         required: false
         default: '10'
+      master_username:
+        description: 'FGAC master username for OpenSearch Dashboards browser login'
+        required: false
+        default: 'fxadmin'
   workflow_call:
     inputs:
       regions:           { required: true, type: string }
@@ -44,6 +48,7 @@ on:
       instance_type:     { required: false, type: string, default: 't3.small.search' }
       instance_count:    { required: false, type: string, default: '1' }
       ebs_volume_size_gb: { required: false, type: string, default: '10' }
+      master_username:   { required: false, type: string, default: 'fxadmin' }
 
 permissions:
   contents: read
@@ -123,8 +128,26 @@ jobs:
           fi
           echo "state=$STATE" >> "$GITHUB_OUTPUT"
 
+      - name: Validate FGAC password secret is set
+        if: steps.precheck.outputs.state != 'skip'
+        env:
+          MASTER_PASSWORD: ${{ secrets.OPENSEARCH_MASTER_PASSWORD }}
+        run: |
+          if [ -z "$MASTER_PASSWORD" ]; then
+            echo "::error::OPENSEARCH_MASTER_PASSWORD repo secret is not set."
+            echo "::error::Add it under Settings → Secrets and variables → Actions."
+            echo "::error::AWS requires 8–128 chars, with at least one upper, lower, number, and special character."
+            exit 1
+          fi
+
       - name: Deploy OpenSearch stack in ${{ matrix.region }}
         if: steps.precheck.outputs.state != 'skip'
+        env:
+          # Mapped to env to keep it off the command line; --parameter-overrides
+          # would otherwise include the value in 'ps' output / process listings
+          # on the runner. GitHub Actions auto-masks secrets in logs anyway,
+          # but defense in depth.
+          MASTER_PASSWORD: ${{ secrets.OPENSEARCH_MASTER_PASSWORD }}
         run: |
           set -euo pipefail
           aws cloudformation deploy \
@@ -137,6 +160,8 @@ jobs:
               InstanceType=${{ inputs.instance_type }} \
               InstanceCount=${{ inputs.instance_count }} \
               EbsVolumeSizeGB=${{ inputs.ebs_volume_size_gb }} \
+              MasterUsername=${{ inputs.master_username }} \
+              MasterPassword="$MASTER_PASSWORD" \
             --no-fail-on-empty-changeset \
             --tags Project=fx-trade-analytics Environment=${{ inputs.environment }} Region=${{ matrix.region }}
 
