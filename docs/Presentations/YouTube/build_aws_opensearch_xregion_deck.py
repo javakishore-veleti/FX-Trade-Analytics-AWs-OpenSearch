@@ -408,119 +408,115 @@ def s05_after(prs, page, total):
     return s
 
 
-def s06_project_intro(prs, page, total):
+def s06_architecture(prs, page, total):
+    """Single slide that introduces the project AND shows the multi-region
+    deployment topology — OpenSearch UI federating across regions."""
     s = base_slide(prs, page=page, total=total,
                    eyebrow='The worked example',
-                   title='Meet FX Trade Analytics')
+                   title='Meet FX Trade Analytics — a reference implementation')
 
-    add_textbox(s, Inches(0.6), Inches(2.2), Inches(12.1), Inches(0.6),
-        'A real-time, multi-region FX trading platform I built end-to-end. '
-        'Open source · in the description.',
-        size=16, color=SLATE_700, line_spacing=1.4)
+    # Subtitle / framing
+    add_textbox(s, Inches(0.6), Inches(2.0), Inches(12.1), Inches(0.5),
+        'Open-source reference implementation showcasing the new AWS OpenSearch '
+        'cross-region UI feature on a real, production-shaped workload.',
+        size=14, color=SLATE_700, line_spacing=1.4)
 
-    feats = [
-        ('Producer', 'Customer portal places trades · master-data validation', NAVY),
-        ('Stream',   'Kafka pipeline · risk classifier · enriched events',     CYAN),
-        ('Index',    'OpenSearch indices partitioned by AWS region',           EMERALD),
-        ('Analyze',  'Customer + admin portals · OpenSearch UI',               AMBER),
+    # ── OpenSearch UI hero box (top, central, AWS-branded) ──
+    ui_w = Inches(7.0); ui_h = Inches(0.95)
+    ui_x = (SLIDE_W - ui_w) // 2
+    ui_y = Inches(2.65)
+    add_rounded_rect(s, ui_x, ui_y, ui_w, ui_h, fill=AWS_DARK,
+                     line=AWS_ORANGE, line_w=Pt(2.0))
+    add_textbox(s, ui_x, ui_y + Inches(0.12), ui_w, Inches(0.32),
+                'AWS · OPENSEARCH UI', size=11, bold=True, color=AWS_ORANGE,
+                align=PP_ALIGN.CENTER)
+    add_textbox(s, ui_x, ui_y + Inches(0.42), ui_w, Inches(0.4),
+                'Single application — federates queries across regions + accounts',
+                size=14, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+
+    # ── Region columns (3 deployments, parallel) ──
+    regions = [
+        ('us-east-1',  'N. Virginia', NAVY),
+        ('eu-west-1',  'Ireland',     CYAN),
+        ('ap-south-1', 'Mumbai',      EMERALD),
     ]
-    card_w = Inches(2.95); gap = Inches(0.10)
-    y = Inches(3.1); h = Inches(3.4)
-    for i, (head, body, accent) in enumerate(feats):
-        x = Inches(0.6) + (card_w + gap) * i
-        add_rounded_rect(s, x, y, card_w, h, fill=WHITE, line=SLATE_200, line_w=Pt(0.75))
-        add_rect(s, x, y, card_w, Inches(0.45), fill=accent)
-        add_textbox(s, x, y + Inches(0.10), card_w, Inches(0.35),
-                    head, size=14, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
-        add_textbox(s, x + Inches(0.30), y + Inches(0.7), card_w - Inches(0.6), Inches(2.6),
-                    body, size=13, color=SLATE_700, line_spacing=1.5)
-    add_speaker_notes(s,
-        "Quick intro to the worked example. FX Trade Analytics is a real-time "
-        "trading platform I built end-to-end — Spring Boot microservices, "
-        "Kafka pipeline, OpenSearch indexing, Angular portals, deployed via "
-        "GitHub Actions to AWS. Four logical layers, left to right: producer "
-        "(customers place trades, validated against master data), stream "
-        "(Kafka with a risk classifier in the middle), index (OpenSearch "
-        "indices, region-partitioned), analyze (admin and customer portals, "
-        "and now — OpenSearch UI). The full source code link will be on the "
-        "outro slide and in the description.")
-    return s
+    col_w = Inches(3.93)
+    gap   = Inches(0.165)
+    col_y = Inches(4.10)
+    col_h = Inches(2.78)
 
+    # Connector lines from UI box bottom down to each region top
+    ui_bottom_y = ui_y + ui_h
+    for i, (_, _, accent) in enumerate(regions):
+        col_x = Inches(0.6) + (col_w + gap) * i
+        cx = col_x + col_w / 2
+        # vertical connector
+        add_rect(s, cx - Inches(0.012), ui_bottom_y, Inches(0.024),
+                 col_y - ui_bottom_y, fill=AWS_ORANGE)
+        # arrowhead at the bottom
+        add_arrow(s, cx - Inches(0.10), col_y - Inches(0.18),
+                  Inches(0.20), Inches(0.18), fill=AWS_ORANGE)
 
-def s07_architecture(prs, page, total):
-    s = base_slide(prs, page=page, total=total,
-                   eyebrow='Architecture · one slide',
-                   title='Event-driven · multi-region by design')
+    # Each region: top-down stack showing the application tiers
+    for i, (region, city, accent) in enumerate(regions):
+        col_x = Inches(0.6) + (col_w + gap) * i
+        # Outer container
+        add_rounded_rect(s, col_x, col_y, col_w, col_h, fill=WHITE,
+                         line=accent, line_w=Pt(1.5))
+        # Region header strip
+        add_rect(s, col_x, col_y, col_w, Inches(0.42), fill=accent)
+        add_textbox(s, col_x, col_y + Inches(0.05), col_w, Inches(0.22),
+                    region, size=14, bold=True, color=WHITE,
+                    font='Menlo', align=PP_ALIGN.CENTER)
+        add_textbox(s, col_x, col_y + Inches(0.24), col_w, Inches(0.18),
+                    city, size=10, color=WHITE, align=PP_ALIGN.CENTER)
 
-    boxes = [
-        ('Customer\nPortal',    '4201',    CYAN),
-        ('Trade\nService',      '8080',    NAVY),
-        ('Kafka\ntrade-events', 'Confluent', AMBER),
-        ('Risk\nService',       '8081',    NAVY),
-        ('Kafka\nenriched',     '',        AMBER),
-        ('Indexer',             '8082',    NAVY),
-        ('OpenSearch\nfx-trades-{region}', 'Per-region', EMERALD),
-    ]
-    n = len(boxes)
-    box_w = Inches(1.55); arrow_w = Inches(0.20)
-    total_w = box_w*n + arrow_w*(n-1)
-    start_x = (SLIDE_W - total_w) // 2
-    y = Inches(2.4); h = Inches(1.45)
-    for i, (label, sub, accent) in enumerate(boxes):
-        x = start_x + (box_w + arrow_w) * i
-        add_rounded_rect(s, x, y, box_w, h, fill=WHITE, line=accent, line_w=Pt(1.5))
-        add_textbox(s, x + Inches(0.05), y + Inches(0.20), box_w - Inches(0.1), Inches(0.7),
-                    label, size=11, bold=True, color=SLATE_900, align=PP_ALIGN.CENTER, line_spacing=1.2)
-        add_textbox(s, x + Inches(0.05), y + Inches(1.00), box_w - Inches(0.1), Inches(0.4),
-                    sub, size=10, color=SLATE_500, align=PP_ALIGN.CENTER)
-        if i < n - 1:
-            add_arrow(s, x + box_w + Inches(0.01), y + Inches(0.55),
-                      arrow_w - Inches(0.02), Inches(0.30), fill=CYAN)
+        # Inner tiers, top-down
+        inner_x = col_x + Inches(0.18)
+        inner_w = col_w - Inches(0.36)
+        ty = col_y + Inches(0.55)
+        tier_h = Inches(0.50)
+        tier_gap = Inches(0.05)
 
-    # Side branches
-    add_rounded_rect(s, Inches(0.7), Inches(4.20), Inches(4.0), Inches(0.85),
-                     fill=NAVY_SOFT, line=None)
-    add_textbox(s, Inches(0.95), Inches(4.30), Inches(3.6), Inches(0.35),
-                'MASTER DATA · 8083', size=10, bold=True, color=NAVY_DARK)
-    add_textbox(s, Inches(0.95), Inches(4.55), Inches(3.6), Inches(0.45),
-                'Postgres + Liquibase · pair allow-list', size=11, color=NAVY_DARK)
+        tiers = [
+            ('WEB TIER',           'Customer Portal · Admin Portal', NAVY_SOFT, NAVY_DARK),
+            ('APPLICATION TIER',   'Trade · Risk · Indexer · Master Data', INDIGO_SOFT, NAVY_DARK),
+            ('STREAMING + STATE',  'Kafka · Postgres', AMBER, WHITE),
+        ]
+        for label, body, fill, fg in tiers:
+            add_rounded_rect(s, inner_x, ty, inner_w, tier_h, fill=fill, line=None)
+            add_textbox(s, inner_x, ty + Inches(0.04), inner_w, Inches(0.20),
+                        label, size=8, bold=True, color=fg, align=PP_ALIGN.CENTER)
+            add_textbox(s, inner_x, ty + Inches(0.23), inner_w, Inches(0.27),
+                        body, size=10, color=fg, align=PP_ALIGN.CENTER)
+            ty += tier_h + tier_gap
 
-    add_rounded_rect(s, Inches(4.85), Inches(4.20), Inches(4.0), Inches(0.85),
-                     fill=NAVY_SOFT, line=None)
-    add_textbox(s, Inches(5.10), Inches(4.30), Inches(3.6), Inches(0.35),
-                'ADMIN PORTAL · 4200', size=10, bold=True, color=NAVY_DARK)
-    add_textbox(s, Inches(5.10), Inches(4.55), Inches(3.6), Inches(0.45),
-                'Currencies · pairs · trade books', size=11, color=NAVY_DARK)
-
-    add_rounded_rect(s, Inches(9.0), Inches(4.20), Inches(3.7), Inches(0.85),
-                     fill=AWS_DARK, line=AWS_ORANGE, line_w=Pt(1.0))
-    add_textbox(s, Inches(9.25), Inches(4.30), Inches(3.3), Inches(0.35),
-                'OPENSEARCH UI · NEW', size=10, bold=True, color=AWS_ORANGE)
-    add_textbox(s, Inches(9.25), Inches(4.55), Inches(3.3), Inches(0.45),
-                'Cross-region · cross-account', size=11, color=WHITE)
-
-    # Region tag row
-    rtag_y = Inches(5.4)
-    add_textbox(s, Inches(0.6), rtag_y, Inches(12.1), Inches(0.4),
-                'EVERY DEPLOYMENT REPLICATES THIS STACK PER REGION:',
-                size=10, bold=True, color=SLATE_500)
-    for i, r in enumerate(['us-east-1', 'eu-west-1', 'ap-south-1']):
-        x = Inches(0.6) + Inches(4.05) * i
-        add_rounded_rect(s, x, Inches(5.85), Inches(3.95), Inches(0.7),
-                         fill=NAVY_SOFT, line=None)
-        add_textbox(s, x, Inches(6.0), Inches(3.95), Inches(0.4),
-                    r, size=14, bold=True, color=NAVY_DARK,
+        # OpenSearch domain tier — highlighted, this is what UI federates
+        os_h = Inches(0.55)
+        add_rounded_rect(s, inner_x, ty, inner_w, os_h,
+                         fill=AWS_DARK, line=AWS_ORANGE, line_w=Pt(1.0))
+        add_textbox(s, inner_x, ty + Inches(0.05), inner_w, Inches(0.20),
+                    'OPENSEARCH DOMAIN', size=8, bold=True, color=AWS_ORANGE,
+                    align=PP_ALIGN.CENTER)
+        add_textbox(s, inner_x, ty + Inches(0.25), inner_w, Inches(0.28),
+                    f'fx-trades-{region}', size=10, color=WHITE,
                     font='Menlo', align=PP_ALIGN.CENTER)
 
     add_speaker_notes(s,
-        "One slide for the architecture. Customer places a trade, validated "
-        "against master data, dropped into Kafka, risk-classified, "
-        "republished, indexed in OpenSearch — partitioned by region. The new "
-        "piece is in the bottom-right — OpenSearch UI now talks to all three "
-        "regional domains as a single application. The bottom row says it "
-        "out loud — every full deployment replicates this stack per region, "
-        "and OpenSearch UI is the layer that ties them together at the "
-        "analytics layer. Same architecture, three regions, one dashboard.")
+        "This single slide is the introduction and the architecture. FX "
+        "Trade Analytics is an open-source reference implementation — "
+        "deliberately built to showcase exactly this new AWS feature on a "
+        "real, production-shaped workload, not a toy. Look at the picture: "
+        "every region — us-east-1, eu-west-1, ap-south-1 — runs an identical "
+        "deployment of the entire stack. The web tier with our two Angular "
+        "portals. The application tier with our four Spring Boot services — "
+        "trade, risk, indexer, and master data. Streaming and state — Kafka "
+        "for events, Postgres for reference data. And at the bottom of each "
+        "region, the OpenSearch domain holding that region's trade index. "
+        "What's new is the orange piece at the top — OpenSearch UI as a "
+        "single application, federating queries across all three regional "
+        "domains. Same architecture, three regions, one dashboard. From "
+        "here on, every concept lands on this picture.")
     return s
 
 
@@ -1059,8 +1055,7 @@ def main():
         (s03_problem,         True),
         (s04_before,          True),
         (s05_after,           True),
-        (s06_project_intro,   True),
-        (s07_architecture,    True),
+        (s06_architecture,    True),   # merged: project intro + topology
         (s08_partitioned,     True),
         (s09_forward_looking, True),
         (s10_zero_changes,    True),
