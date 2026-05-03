@@ -216,11 +216,11 @@ CORS is needed because in dev the customer portal at `:4201` posts cross-origin 
 - Indexer writes to `fx-trades-{region}`, document id = `tradeId`, source built via `mapper.convertValue(trade, Map.class)` (so types rely on dynamic mapping unless an index template is applied first).
 - Mapping JSON: `devops/local/opensearch/mappings/fx-trades-mapping.json`. Apply it as an index template **before** any documents land, otherwise dynamic mapping will misclassify `timestamp` (long, should be date) and `riskLevel/region/tradeId` (text+keyword multi-field, should be keyword).
 - Dashboards NDJSON: `devops/local/opensearch/mappings/fx-{overview,risk,region,monitoring}.ndjson` — load via OpenSearch Dashboards → Stack Management → Saved Objects → Import. They depend on the index pattern `fx-trades-*` existing.
-- Search API: `TradeSearchController` exposes `GET /trades/search/risk?risk=HIGH` against index pattern `fx-trades-*` and returns the raw `SearchResponse.toString()` — not JSON. Any "improve search API" task should fix that response shape.
+- Search API: `TradeSearchController` (in `api` package) exposes:
+  - `GET /trades/search?risk=HIGH&region=us-east-1&size=50` — returns `List<Map<String,Object>>` JSON, single-region query against `fx-trades-{region}`. Cross-region "all regions" search is intentionally NOT supported here — that's the AWS OpenSearch UI's federation responsibility.
+  - `GET /trades/search/risk?risk=HIGH` — legacy, returns a count summary string. Kept for backward compat; new callers should use the JSON endpoint.
 
-**Gotcha — controller package**: `TradeSearchController` is in package `com.jk.fx.trade_mgmt.controller` while `TradeController` is in `...api`. Both still get scanned because the `@SpringBootApplication` is at `com.jk.fx.trade_mgmt`, but the inconsistency is real.
-
-**Gotcha — auto-generated load**: `TradeDataGenerator` is a `@Component implements CommandLineRunner` that **fires 50 random trades on every trade-service startup**. Convenient for end-to-end validation, surprising if you didn't expect it. Gate behind a profile or remove `@Component` if it gets in the way.
+**`seed-data` profile**: `TradeDataGenerator` fires 50 random trades on startup ONLY when `--spring.profiles.active=seed-data` is set. Used for pipeline smoke tests without the UI. The customer portal's **Generate demo trades** button is the everyday path for populating data.
 
 ---
 
