@@ -22,7 +22,7 @@
     "localhost:app:portals:ensure-install": "cd portals && npm install --prefer-offline --no-audit --no-fund",
     "localhost:app:ui:admin":    "npm run localhost:app:portals:ensure-install && cd portals && npm run start:admin",
     "localhost:app:ui:customer": "npm run localhost:app:portals:ensure-install && cd portals && npm run start:customer",
-    "localhost:app:ui:all-up":   "npm run localhost:app:portals:ensure-install && concurrently -k -n admin,customer,open \"cd portals && npm run start:admin\" \"cd portals && npm run start:customer\" \"bash devops/local/ui-open-when-ready.sh\"",
+    "localhost:app:ui:all-up":   "npm run localhost:app:portals:ensure-install && concurrently --kill-others-on-fail -n admin,customer,open \"cd portals && npm run start:admin\" \"cd portals && npm run start:customer\" \"bash devops/local/ui-open-when-ready.sh\"",
     "localhost:app:ui:all-down":   "bash devops/local/ui-down.sh",
     "localhost:app:ui:all-status": "bash devops/local/ui-status.sh",
 
