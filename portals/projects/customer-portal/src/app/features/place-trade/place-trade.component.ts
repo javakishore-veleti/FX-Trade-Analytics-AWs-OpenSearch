@@ -26,6 +26,24 @@ import { CurrencyPair } from '../../shared/models/currency-pair.model';
       <div class="hero__eyebrow">Foreign Exchange · Live</div>
       <h1 class="hero__title">Place a Trade</h1>
       <p class="hero__sub">Select a currency pair, enter your amount, and route it through our real-time risk + indexing pipeline.</p>
+      <div class="hero__actions">
+        <button mat-flat-button color="accent"
+                class="hero__demo-btn"
+                [disabled]="demoBusy() || activePairs().length === 0 || regionCodes().length === 0"
+                (click)="generateDemoTrades()">
+          @if (demoBusy()) {
+            <ng-container>
+              <mat-spinner diameter="16" strokeWidth="3"></mat-spinner>
+              <span>Generating {{ demoProgress() }}/{{ demoTotal() }} …</span>
+            </ng-container>
+          } @else {
+            <ng-container>
+              <mat-icon>auto_fix_high</mat-icon>
+              <span>Generate demo trades</span>
+            </ng-container>
+          }
+        </button>
+      </div>
     </section>
 
     <div class="layout">
@@ -299,6 +317,17 @@ import { CurrencyPair } from '../../shared/models/currency-pair.model';
       justify-content: center;
       gap: 8px;
     }
+
+    .hero__actions {
+      margin-top: 16px;
+      display: flex;
+      gap: 12px;
+    }
+    .hero__demo-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-weight: 600;
+      border-radius: 10px !important;
+    }
   `],
 })
 export class PlaceTradeComponent implements OnInit {
@@ -326,6 +355,11 @@ export class PlaceTradeComponent implements OnInit {
   activePairs = signal<CurrencyPair[]>([]);
   loadingPairs = signal(true);
   submitting = signal(false);
+
+  // Demo trade generator state
+  demoBusy = signal(false);
+  demoTotal = signal(0);
+  demoProgress = signal(0);
 
   /** Region → backend URL map fetched from /api/config/regions. */
   regions = signal<Record<string, string>>({});
@@ -411,5 +445,68 @@ export class PlaceTradeComponent implements OnInit {
         this.snack.open('Place failed: ' + msg, 'OK', { duration: 5000 });
       },
     });
+  }
+
+  /**
+   * Fires N random trades cycling through every configured region. Saves
+   * click-fatigue when populating multiple AWS OpenSearch domains for the
+   * cross-region UI demo. Shows live progress on the button.
+   */
+  generateDemoTrades() {
+    const pairs = this.activePairs();
+    const regions = this.regionCodes();
+    if (pairs.length === 0 || regions.length === 0) return;
+
+    const input = window.prompt('How many demo trades? (1–500)', '50');
+    if (input == null) return;
+    const n = Math.max(1, Math.min(500, Math.floor(Number(input)) || 0));
+    if (!n) return;
+
+    this.demoBusy.set(true);
+    this.demoTotal.set(n);
+    this.demoProgress.set(0);
+
+    let succeeded = 0;
+    let rejected = 0;
+    let i = 0;
+    const fire = () => {
+      if (i >= n) {
+        this.demoBusy.set(false);
+        const msg = `Generated ${succeeded} trade(s) across ${regions.length} region(s)`
+                  + (rejected ? `; ${rejected} rejected by master-data validation` : '');
+        this.snack.open(msg, 'OK', { duration: 6000 });
+        return;
+      }
+      const pair = pairs[i % pairs.length];
+      const region = regions[i % regions.length];
+      const baseUrl = this.regionConfig.endpointFor(region);
+      const fromAmount = Math.round((50 + Math.random() * 9950) * 100) / 100;
+      const rate = Math.round((0.5 + Math.random() * 100) * 10000) / 10000;
+
+      this.trades.place({
+        fromCurrency: pair.fromCurrency,
+        toCurrency: pair.toCurrency,
+        fromAmount,
+        rate,
+        region,
+        traderBook: 'DEMO-' + (1 + (i % 3)),
+      }, baseUrl).subscribe({
+        next: r => {
+          if (r.accepted) succeeded++; else rejected++;
+          i++;
+          this.demoProgress.set(i);
+          // Small delay so the indexer doesn't see a tidal wave + so the
+          // browser stays responsive. 80ms = ~12 trades/sec.
+          setTimeout(fire, 80);
+        },
+        error: () => {
+          rejected++;
+          i++;
+          this.demoProgress.set(i);
+          setTimeout(fire, 80);
+        },
+      });
+    };
+    fire();
   }
 }
