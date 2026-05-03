@@ -1,0 +1,54 @@
+name: 002-AWS-Destroy-IAM-Roles
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: 'AWS region'
+        required: true
+        default: 'us-east-1'
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, stg, prod]
+      confirm:
+        description: 'Type DESTROY to confirm.'
+        required: true
+        default: ''
+  workflow_call:
+    inputs:
+      aws_region: { required: true, type: string }
+      environment: { required: true, type: string }
+      confirm: { required: true, type: string }
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy-iam:
+    runs-on: ubuntu-latest
+    env:
+      STACK_NAME: fx-${{ inputs.environment }}-iam-roles
+      AWS_REGION: ${{ inputs.aws_region }}
+    steps:
+      - name: Verify confirmation token
+        run: |
+          if [ "${{ inputs.confirm }}" != "DESTROY" ]; then
+            echo "::error::Refusing to destroy. You must type DESTROY in the confirm input."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Delete IAM roles stack
+        run: |
+          aws cloudformation delete-stack --stack-name "$STACK_NAME"
+          aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
+          echo "Stack $STACK_NAME deleted."

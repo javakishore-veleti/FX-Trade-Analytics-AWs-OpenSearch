@@ -1,0 +1,60 @@
+name: 001-AWS-Destroy-VPC
+
+# Deletes the VPC CloudFormation stack created by 001-AWS-Initial-Setup-VPC.
+# Refuses to run unless `confirm` is typed exactly to prevent accidents.
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: 'AWS region'
+        required: true
+        default: 'us-east-1'
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, stg, prod]
+      confirm:
+        description: 'Type DESTROY to confirm. Anything else aborts.'
+        required: true
+        default: ''
+  workflow_call:
+    inputs:
+      aws_region: { required: true, type: string }
+      environment: { required: true, type: string }
+      confirm: { required: true, type: string }
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy-vpc:
+    runs-on: ubuntu-latest
+    env:
+      STACK_NAME: fx-${{ inputs.environment }}-vpc
+      AWS_REGION: ${{ inputs.aws_region }}
+    steps:
+      - name: Verify confirmation token
+        run: |
+          if [ "${{ inputs.confirm }}" != "DESTROY" ]; then
+            echo "::error::Refusing to destroy. You must type DESTROY in the confirm input."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Delete VPC stack
+        run: |
+          echo "Deleting stack $STACK_NAME in $AWS_REGION ..."
+          aws cloudformation delete-stack --stack-name "$STACK_NAME"
+          aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" || {
+            echo "::error::Stack delete did not complete cleanly. Check the AWS console for ROLLBACK_COMPLETE / DELETE_FAILED state."
+            exit 1
+          }
+          echo "Stack $STACK_NAME deleted."

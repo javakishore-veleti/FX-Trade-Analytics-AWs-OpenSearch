@@ -1,0 +1,61 @@
+name: 996-AWS-All-Destroy
+
+# Orchestrator: tears everything down in REVERSE order of creation
+# (apps first, foundations last). All children require the literal token
+# 'DESTROY' in the confirm input — this workflow forwards it.
+# Add new steps in reverse order of their setup numbers.
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: 'AWS region'
+        required: true
+        default: 'us-east-1'
+      environment:
+        description: 'Environment to tear down'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, stg, prod]
+      confirm:
+        description: 'Type DESTROY to confirm. Forwarded to every child workflow.'
+        required: true
+        default: ''
+      purge_ecr_images:
+        description: 'Purge ECR images before deleting the ECR stack?'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  ecr:
+    uses: ./.github/workflows/003-AWS-Destroy-ECR.yml
+    secrets: inherit
+    with:
+      aws_region: ${{ inputs.aws_region }}
+      environment: ${{ inputs.environment }}
+      confirm: ${{ inputs.confirm }}
+      purge_images: ${{ inputs.purge_ecr_images }}
+
+  iam-roles:
+    needs: ecr
+    uses: ./.github/workflows/002-AWS-Destroy-IAM-Roles.yml
+    secrets: inherit
+    with:
+      aws_region: ${{ inputs.aws_region }}
+      environment: ${{ inputs.environment }}
+      confirm: ${{ inputs.confirm }}
+
+  vpc:
+    needs: iam-roles
+    uses: ./.github/workflows/001-AWS-Destroy-VPC.yml
+    secrets: inherit
+    with:
+      aws_region: ${{ inputs.aws_region }}
+      environment: ${{ inputs.environment }}
+      confirm: ${{ inputs.confirm }}

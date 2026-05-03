@@ -1,0 +1,82 @@
+name: 001-AWS-Initial-Setup-VPC
+
+# Manual button in Actions tab. Also callable from 995-AWS-All-Setup.
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: 'AWS region (e.g. us-east-1)'
+        required: true
+        default: 'us-east-1'
+      environment:
+        description: 'Environment tag'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, stg, prod]
+      existing_vpc_id:
+        description: 'If set, skip creation and just record this VPC id (no stack created).'
+        required: false
+        default: ''
+      vpc_cidr:
+        description: 'CIDR for the new VPC (ignored if existing_vpc_id is set)'
+        required: false
+        default: '10.0.0.0/16'
+      create_nat_gateway:
+        description: 'Create a NAT gateway (~$32/mo)?'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+  workflow_call:
+    inputs:
+      aws_region: { required: true, type: string }
+      environment: { required: true, type: string }
+      existing_vpc_id: { required: false, type: string, default: '' }
+      vpc_cidr: { required: false, type: string, default: '10.0.0.0/16' }
+      create_nat_gateway: { required: false, type: string, default: 'true' }
+
+permissions:
+  id-token: write   # for OIDC AWS auth
+  contents: read
+
+jobs:
+  vpc:
+    runs-on: ubuntu-latest
+    env:
+      STACK_NAME: fx-${{ inputs.environment }}-vpc
+      AWS_REGION: ${{ inputs.aws_region }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Use existing VPC (skip creation)
+        if: inputs.existing_vpc_id != ''
+        run: |
+          echo "Skipping CloudFormation; reusing VPC ${{ inputs.existing_vpc_id }}."
+          aws ec2 describe-vpcs --vpc-ids "${{ inputs.existing_vpc_id }}" \
+            --query 'Vpcs[0].{Id:VpcId,Cidr:CidrBlock,State:State}' --output table
+
+      - name: Deploy VPC stack
+        if: inputs.existing_vpc_id == ''
+        run: |
+          aws cloudformation deploy \
+            --stack-name "$STACK_NAME" \
+            --template-file .github/aws/cloudformation/vpc.yml \
+            --parameter-overrides \
+              Environment=${{ inputs.environment }} \
+              VpcCidr=${{ inputs.vpc_cidr }} \
+              CreateNatGateway=${{ inputs.create_nat_gateway }} \
+            --no-fail-on-empty-changeset \
+            --tags Project=fx-trade-analytics Environment=${{ inputs.environment }}
+
+      - name: Show stack outputs
+        if: inputs.existing_vpc_id == ''
+        run: |
+          aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs' --output table

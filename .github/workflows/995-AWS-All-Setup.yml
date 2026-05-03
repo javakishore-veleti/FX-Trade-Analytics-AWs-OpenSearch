@@ -1,0 +1,63 @@
+name: 995-AWS-All-Setup
+
+# Orchestrator: runs every 0XX-AWS-Initial-Setup-* workflow in order with the
+# same shared inputs. Each step is a separate workflow run with its own logs.
+# Add a new step here whenever you add a new 0XX-AWS-Initial-Setup-* workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: 'AWS region'
+        required: true
+        default: 'us-east-1'
+      environment:
+        description: 'Environment tag'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, stg, prod]
+      existing_vpc_id:
+        description: 'Reuse this VPC instead of creating one (optional).'
+        required: false
+        default: ''
+      vpc_cidr:
+        description: 'CIDR for new VPC (ignored if existing_vpc_id is set)'
+        required: false
+        default: '10.0.0.0/16'
+      create_nat_gateway:
+        description: 'Create NAT gateway (~$32/mo)?'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  vpc:
+    uses: ./.github/workflows/001-AWS-Initial-Setup-VPC.yml
+    secrets: inherit
+    with:
+      aws_region: ${{ inputs.aws_region }}
+      environment: ${{ inputs.environment }}
+      existing_vpc_id: ${{ inputs.existing_vpc_id }}
+      vpc_cidr: ${{ inputs.vpc_cidr }}
+      create_nat_gateway: ${{ inputs.create_nat_gateway }}
+
+  iam-roles:
+    needs: vpc
+    uses: ./.github/workflows/002-AWS-Initial-Setup-IAM-Roles.yml
+    secrets: inherit
+    with:
+      aws_region: ${{ inputs.aws_region }}
+      environment: ${{ inputs.environment }}
+
+  ecr:
+    needs: iam-roles
+    uses: ./.github/workflows/003-AWS-Initial-Setup-ECR.yml
+    secrets: inherit
+    with:
+      aws_region: ${{ inputs.aws_region }}
+      environment: ${{ inputs.environment }}

@@ -1,0 +1,59 @@
+name: 003-AWS-Initial-Setup-ECR
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: 'AWS region'
+        required: true
+        default: 'us-east-1'
+      environment:
+        description: 'Environment tag'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, stg, prod]
+      image_retention_count:
+        description: 'How many recent images to keep per repo'
+        required: false
+        default: '10'
+  workflow_call:
+    inputs:
+      aws_region: { required: true, type: string }
+      environment: { required: true, type: string }
+      image_retention_count: { required: false, type: string, default: '10' }
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  ecr:
+    runs-on: ubuntu-latest
+    env:
+      STACK_NAME: fx-${{ inputs.environment }}-ecr
+      AWS_REGION: ${{ inputs.aws_region }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Deploy ECR stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name "$STACK_NAME" \
+            --template-file .github/aws/cloudformation/ecr.yml \
+            --parameter-overrides \
+              Environment=${{ inputs.environment }} \
+              ImageRetentionCount=${{ inputs.image_retention_count }} \
+            --no-fail-on-empty-changeset \
+            --tags Project=fx-trade-analytics Environment=${{ inputs.environment }}
+
+      - name: Show stack outputs
+        run: |
+          aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs' --output table

@@ -1,0 +1,81 @@
+name: 003-AWS-Destroy-ECR
+
+# WARNING: deleting the stack also deletes the repositories. If they contain
+# pushed images, CloudFormation will fail unless the repos are emptied first.
+# This workflow attempts a best-effort image purge before delete.
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: 'AWS region'
+        required: true
+        default: 'us-east-1'
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, stg, prod]
+      confirm:
+        description: 'Type DESTROY to confirm.'
+        required: true
+        default: ''
+      purge_images:
+        description: 'Delete all images in the repos before deleting the stack?'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+  workflow_call:
+    inputs:
+      aws_region: { required: true, type: string }
+      environment: { required: true, type: string }
+      confirm: { required: true, type: string }
+      purge_images: { required: false, type: string, default: 'true' }
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy-ecr:
+    runs-on: ubuntu-latest
+    env:
+      STACK_NAME: fx-${{ inputs.environment }}-ecr
+      AWS_REGION: ${{ inputs.aws_region }}
+    steps:
+      - name: Verify confirmation token
+        run: |
+          if [ "${{ inputs.confirm }}" != "DESTROY" ]; then
+            echo "::error::Refusing to destroy. You must type DESTROY in the confirm input."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Purge images from each repo
+        if: inputs.purge_images == 'true'
+        run: |
+          set -e
+          for repo in fx-${{ inputs.environment }}/trade-service \
+                      fx-${{ inputs.environment }}/risk-service \
+                      fx-${{ inputs.environment }}/opensearch-indexer \
+                      fx-${{ inputs.environment }}/masterdata-service; do
+            if aws ecr describe-repositories --repository-names "$repo" >/dev/null 2>&1; then
+              ids=$(aws ecr list-images --repository-name "$repo" --query 'imageIds[*]' --output json)
+              if [ "$ids" != "[]" ]; then
+                echo "Purging images from $repo ..."
+                aws ecr batch-delete-image --repository-name "$repo" --image-ids "$ids" || true
+              fi
+            fi
+          done
+
+      - name: Delete ECR stack
+        run: |
+          aws cloudformation delete-stack --stack-name "$STACK_NAME"
+          aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
+          echo "Stack $STACK_NAME deleted."
