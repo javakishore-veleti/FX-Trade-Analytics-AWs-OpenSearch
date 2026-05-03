@@ -18,6 +18,7 @@ Setup and destroy share the same stack name (`fx-${environment}-foo` or `fx-${en
 
 | #   | Setup                                            | Destroy                                          | Scope        | What it provisions |
 |-----|--------------------------------------------------|--------------------------------------------------|--------------|-------------------|
+| 000 | `000-AWS-Bootstrap-IAM-Deployer.yml`             | `000-AWS-Destroy-IAM-Deployer.yml`               | Global (one-time) | IAM Customer Managed Policy + Group + User + access keys for the deployer identity. Uses **bootstrap admin secrets** (`BOOTSTRAP_AWS_*`) — see the IAM bootstrap section below |
 | 001 | `001-AWS-Initial-Setup-VPC.yml`                  | `001-AWS-Destroy-VPC.yml`                        | Multi-region | One VPC per region (or reuses an existing VPC if its id is supplied via `vpc_overrides_json`) — 2 public + 2 private subnets, IGW, optional NAT |
 | 002 | `002-AWS-Initial-Setup-IAM-Roles.yml`            | `002-AWS-Destroy-IAM-Roles.yml`                  | Global       | ECS task-execution role + per-service task roles |
 | 003 | `003-AWS-Initial-Setup-ECR.yml`                  | `003-AWS-Destroy-ECR.yml`                        | Single-region | One ECR repo per Spring Boot service |
@@ -70,44 +71,33 @@ Each setup workflow MUST expose both `workflow_dispatch:` (so you can run it fro
 - Every **destroy** workflow requires the literal text `DESTROY` in the `confirm` input. Anything else aborts the run.
 - `production` environment is in the dropdown but you are responsible for protecting it via [GitHub Environments](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) — add a required reviewer if you want a manual approval before any prod workflow runs.
 
-## One-time AWS-side setup (IAM user + access keys)
+## One-time AWS-side setup (IAM bootstrap)
 
-These workflows authenticate using static AWS access keys stored as GitHub repo secrets. You set this up **once per AWS account** before running any workflow.
+The deployer identity is created **by the `000-AWS-Bootstrap-IAM-Deployer` workflow itself** — no local CLI required.
 
-The IAM policy that defines what the user is allowed to do lives at [`.github/configs/01-AWS-ThisRepo-AWSUser-Policies.json`](../configs/01-AWS-ThisRepo-AWSUser-Policies.json) and full setup instructions are in [`.github/configs/README.md`](../configs/README.md).
+The IAM policy that defines what the deployer is allowed to do lives at [`.github/aws/configs/01-AWS-ThisRepo-AWSUser-Policies.json`](../aws/configs/01-AWS-ThisRepo-AWSUser-Policies.json). Full setup walkthrough in [`.github/aws/configs/README.md`](../aws/configs/README.md).
 
-**Quick version (6 CLI commands — Customer Managed Policy + Group + User pattern):**
+**4-step bootstrap (one-time per AWS account):**
 
-```bash
-# 1. Create the Customer Managed Policy from the JSON file in the repo
-aws iam create-policy \
-  --policy-name fx-trade-opensearch-policy \
-  --policy-document file://.github/configs/01-AWS-ThisRepo-AWSUser-Policies.json
-# → save the PolicyArn that's returned
+1. **Add bootstrap admin secrets to the repo** (Settings → Secrets and variables → Actions):
+   - `BOOTSTRAP_AWS_ACCESS_KEY_ID`
+   - `BOOTSTRAP_AWS_SECRET_ACCESS_KEY`
 
-# 2. Create the IAM Group
-aws iam create-group --group-name fx-trade-opensearch-deployers
+   These are the access keys of an admin AWS user. They're used **only** for the bootstrap workflow; you can delete them afterward.
 
-# 3. Attach the policy to the Group (one-time; reused for every future user)
-aws iam attach-group-policy \
-  --group-name fx-trade-opensearch-deployers \
-  --policy-arn <PolicyArn from step 1>
+2. **Run `000-AWS-Bootstrap-IAM-Deployer`** from the Actions tab. Type `BOOTSTRAP` in the confirm input. Click Run.
 
-# 4. Create the User and add to the Group
-aws iam create-user --user-name fx-trade-opensearch-github-deployer
-aws iam add-user-to-group \
-  --user-name fx-trade-opensearch-github-deployer \
-  --group-name fx-trade-opensearch-deployers
+   The workflow creates the Customer Managed Policy + Group + User + access keys (idempotent on the first 5 steps; access keys are always freshly minted). Output prints the new keys.
 
-# 5. Generate access keys
-aws iam create-access-key --user-name fx-trade-opensearch-github-deployer
+3. **Copy the new keys into the deployer secrets**:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
 
-# 6. In GitHub: Settings → Secrets and variables → Actions → New repository secret
-#   AWS_ACCESS_KEY_ID       = <AccessKey.AccessKeyId>
-#   AWS_SECRET_ACCESS_KEY   = <AccessKey.SecretAccessKey>
-```
+4. **Scrub the workflow run** (Actions → run → ⋯ → Delete run) so the access key isn't sitting in logs. Optionally delete the `BOOTSTRAP_AWS_*` secrets too.
 
-To add a future user with the same permissions: just `aws iam add-user-to-group --user-name <new> --group-name fx-trade-opensearch-deployers`. No policy duplication.
+**Adding another deployer user:** re-run `000-AWS-Bootstrap-IAM-Deployer` with a different `user_name` input. Policy + group are reused; only a new user + keys are created.
+
+**Tearing it all down:** `000-AWS-Destroy-IAM-Deployer` workflow. Type `DESTROY`. Same `BOOTSTRAP_AWS_*` secrets required.
 
 After the secrets are set, every workflow in this folder picks them up automatically.
 
