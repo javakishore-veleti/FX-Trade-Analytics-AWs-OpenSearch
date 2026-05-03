@@ -12,7 +12,7 @@
 # Usage:
 #   export FX_TRADE_ANALYTICS_AWS_ACCESS_KEY=<admin access key id>
 #   export FX_TRADE_ANALYTICS_AWS_SECRET=<admin secret access key>
-#   npm run setup:aws:iam-all                 # via package.json (recommended)
+#   npm run localhost:app:aws:setup:iam-all   # via package.json (recommended)
 #   # OR run directly:
 #   bash .github/aws/scripts/aws-iam-setup.sh
 #

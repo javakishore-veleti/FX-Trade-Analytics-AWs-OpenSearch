@@ -41,7 +41,7 @@ If either is missing the script aborts with a clear error — it never silently 
 From the repo root:
 
 ```bash
-npm run setup:aws:iam-all
+npm run localhost:app:aws:setup:iam-all
 ```
 
 The script (idempotent on steps 1-5) will:
@@ -76,7 +76,7 @@ unset FX_TRADE_ANALYTICS_AWS_ACCESS_KEY FX_TRADE_ANALYTICS_AWS_SECRET
 Set the env vars again, then run with a different `USER_NAME`:
 
 ```bash
-USER_NAME=teammate-deployer npm run setup:aws:iam-all
+USER_NAME=teammate-deployer npm run localhost:app:aws:setup:iam-all
 ```
 
 Policy + group already exist (idempotent skip); the script only creates the new user, adds them to the group, and emits their access keys.
@@ -86,7 +86,7 @@ Policy + group already exist (idempotent skip); the script only creates the new 
 ```bash
 export FX_TRADE_ANALYTICS_AWS_ACCESS_KEY=<your admin access key id>
 export FX_TRADE_ANALYTICS_AWS_SECRET=<your admin secret access key>
-CONFIRM_DESTROY=DESTROY npm run destroy:aws:iam-all
+CONFIRM_DESTROY=DESTROY npm run localhost:app:aws:destroy:iam-all
 ```
 
 Refuses to run without `CONFIRM_DESTROY=DESTROY`. Deletes (in order): user's access keys → user → group → policy versions → policy. Idempotent — skips anything that already doesn't exist.
@@ -96,7 +96,7 @@ Refuses to run without `CONFIRM_DESTROY=DESTROY`. Deletes (in order): user's acc
 If a new AWS service gets added to a workflow:
 
 1. Edit `01-AWS-ThisRepo-AWSUser-Policies.json` — add the new `service:*` action to the relevant `Sid` block (or add a new `Sid`).
-2. Re-run `npm run setup:aws:iam-all` — the script detects the existing policy and publishes a new default version (pruning old versions to stay under AWS's 5-version limit).
+2. Re-run `npm run localhost:app:aws:setup:iam-all` — the script detects the existing policy and publishes a new default version (pruning old versions to stay under AWS's 5-version limit).
 
 ## Scope of the policy
 

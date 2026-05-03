@@ -144,28 +144,45 @@ flowchart LR
 
 # 🔁 Daily Developer Workflow (Recommended)
 
-## 🟢 Step 1 — Start Infra
+All scripts follow the pattern `localhost:app:<category>:<action>`.
+
+## 🟢 Step 1 — Start Infra (Kafka, OpenSearch, Kafka UI)
 
 ```bash
-npm run local:docker:up
+npm run localhost:app:infra:all-up
 ```
 
-## 🟡 Step 2 — Start Apps
+## 🟡 Step 2 — Start Services + UI
 
 ```bash
-npm run local:app:run-all
-npm run local:ui:run-all
+npm run localhost:app:services:all-up      # 4 Spring services via concurrently
+npm run localhost:app:ui:all-up            # both portals + auto-opens browsers
+```
+
+Or both with one command:
+
+```bash
+npm run localhost:app:services-ui:all-up
 ```
 
 ---
 
-# 🎯 One Command Mode
+# 🎯 One Command Mode (everything: infra + services + UI)
 
 ```bash
-npm run local:start
-npm run local:status
-npm run local:stop
+npm run localhost:app:all:all-up
+npm run localhost:app:all:all-status
+npm run localhost:app:all:all-down
 ```
+
+# 🐘 Postgres mode (opt-in — H2 stays the default)
+
+```bash
+npm run localhost:app:postgres:run-all     # starts container, waits, runs Liquibase, then services
+npm run localhost:app:postgres:down        # tear down (drops volume)
+```
+
+The `postgres:run-all` flow uses the production-shape pattern: a one-shot migration runner (`postgres,migrate` profile, exits on completion) followed by service pods running with Liquibase disabled (`postgres,no-migrate`). This is the same shape as the future EKS deployment (Helm pre-upgrade Job + Deployment).
 
 ---
 
@@ -324,7 +341,7 @@ Showcase **AWS OpenSearch UI cross-region data access** end-to-end on this codeb
 
 ## Prerequisites — AWS Management Console setup before running anything
 
-Do these **once per AWS account** before `npm run setup:aws:iam-all` (or any GitHub Actions workflow) will work. All clicks happen in the [AWS Management Console](https://console.aws.amazon.com).
+Do these **once per AWS account** before `npm run localhost:app:aws:setup:iam-all` (or any GitHub Actions workflow) will work. All clicks happen in the [AWS Management Console](https://console.aws.amazon.com).
 
 ### 1 · Have an AWS account
 
@@ -386,7 +403,7 @@ These are project-namespaced env vars so they don't collide with any shell-wide 
 ### 6 · Run the IAM bootstrap
 
 ```bash
-npm run setup:aws:iam-all
+npm run localhost:app:aws:setup:iam-all
 ```
 
 The script (idempotent on the first 5 steps) creates:
@@ -421,13 +438,13 @@ export FX_DEPLOYER_AWS_SECRET_ACCESS_KEY=<Secret access key from step 6 output>
 # export AWS_ACCESS_KEY_ID=<Access key id from step 6 output>
 # export AWS_SECRET_ACCESS_KEY=<Secret access key from step 6 output>
 
-npm run local:app:generate-app-secrets-yaml
+npm run localhost:app:secrets:generate
 ```
 
 The script writes `./application-local-secrets.yml` (mode `600`) and tells you what to do next. Need a refresher on env vars / what files get written?
 
 ```bash
-npm run local:app:generate-app-secrets-yaml-help
+npm run localhost:app:secrets:help
 ```
 
 The structure of the generated file is documented in the committed template at [`application-local-secrets-template.yml`](application-local-secrets-template.yml). Every Spring service that needs AWS credentials reads this same file via `spring.config.import: optional:file:./application-local-secrets.yml`.
@@ -553,9 +570,9 @@ When Phase 2 lands, the steps will be:
    ```
 4. **Start the local stack** as today:
    ```bash
-   npm run local:docker:up        # Kafka + local Postgres
-   npm run local:app:run-all      # 4 Spring services — now writing to AWS OpenSearch by region
-   npm run local:ui:run-all       # admin + customer portals
+   npm run localhost:app:infra:all-up      # Kafka + OpenSearch
+   npm run localhost:app:services:all-up   # 4 Spring services — now writing to AWS OpenSearch by region
+   npm run localhost:app:ui:all-up         # admin + customer portals
    ```
 5. **Place a trade** in the customer portal — the trade flows through Kafka, the risk service classifies it, the indexer SigV4-signs the write to the AWS OpenSearch domain that matches the trade's `region` field.
 6. **Verify** the doc landed in AWS:

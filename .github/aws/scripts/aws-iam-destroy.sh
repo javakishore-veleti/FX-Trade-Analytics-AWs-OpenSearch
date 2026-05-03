@@ -7,7 +7,7 @@
 # Usage:
 #   export FX_TRADE_ANALYTICS_AWS_ACCESS_KEY=<admin access key id>
 #   export FX_TRADE_ANALYTICS_AWS_SECRET=<admin secret access key>
-#   CONFIRM_DESTROY=DESTROY npm run destroy:aws:iam-all
+#   CONFIRM_DESTROY=DESTROY npm run localhost:app:aws:destroy:iam-all
 #   # OR run directly:
 #   CONFIRM_DESTROY=DESTROY bash .github/aws/scripts/aws-iam-destroy.sh
 
@@ -19,7 +19,7 @@ set -euo pipefail
 if [ "${CONFIRM_DESTROY:-}" != "DESTROY" ]; then
   echo "ERROR: This will delete the IAM user, group, policy, and access keys." >&2
   echo "       To confirm, set CONFIRM_DESTROY=DESTROY in your shell, then rerun." >&2
-  echo "       e.g.  CONFIRM_DESTROY=DESTROY npm run destroy:aws:iam-all" >&2
+  echo "       e.g.  CONFIRM_DESTROY=DESTROY npm run localhost:app:aws:destroy:iam-all" >&2
   exit 1
 fi
 

@@ -3,38 +3,52 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "local:docker:up": "bash devops/local/docker-all-up.sh",
-    "local:docker:down": "bash devops/local/docker-all-down.sh",
-    "local:docker:status": "bash devops/local/docker-all-status.sh",
+    "_comment": "All scripts follow localhost:app:<category>:<action>. Categories: infra, services, ui, services-ui, all, postgres, secrets, aws, pm2.",
 
-    "local:app:trade": "mvn spring-boot:run -pl middleware/fx-trade-service",
-    "local:app:risk": "mvn spring-boot:run -pl middleware/fx-risk-service",
-    "local:app:indexer": "mvn spring-boot:run -pl middleware/fx-opensearch-indexer",
-    "local:app:masterdata": "mvn spring-boot:run -pl middleware/fx-masterdata-service",
-    "local:app:masterdata:postgres": "mvn spring-boot:run -pl middleware/fx-masterdata-service -Dspring-boot.run.profiles=postgres",
+    "localhost:app:infra:all-up":     "bash devops/local/docker-all-up.sh",
+    "localhost:app:infra:all-down":   "bash devops/local/docker-all-down.sh",
+    "localhost:app:infra:all-status": "bash devops/local/docker-all-status.sh",
 
-    "local:app:run-all": "concurrently -k \"npm:local:app:trade\" \"npm:local:app:risk\" \"npm:local:app:indexer\" \"npm:local:app:masterdata\"",
+    "localhost:app:services:trade":             "mvn spring-boot:run -pl middleware/fx-trade-service",
+    "localhost:app:services:risk":              "mvn spring-boot:run -pl middleware/fx-risk-service",
+    "localhost:app:services:indexer":           "mvn spring-boot:run -pl middleware/fx-opensearch-indexer",
+    "localhost:app:services:masterdata":        "mvn spring-boot:run -pl middleware/fx-masterdata-service",
+    "localhost:app:services:masterdata:postgres": "mvn spring-boot:run -pl middleware/fx-masterdata-service -Dspring-boot.run.profiles=postgres",
+    "localhost:app:services:all-up":     "concurrently -k -n trade,risk,indexer,masterdata \"npm:localhost:app:services:trade\" \"npm:localhost:app:services:risk\" \"npm:localhost:app:services:indexer\" \"npm:localhost:app:services:masterdata\"",
+    "localhost:app:services:all-down":   "bash devops/local/services-down.sh",
+    "localhost:app:services:all-status": "bash devops/local/services-status.sh",
 
-    "portals:install": "cd portals && npm install",
-    "portals:ensure-install": "cd portals && npm install --prefer-offline --no-audit --no-fund",
-    "local:ui:admin": "npm run portals:ensure-install && cd portals && npm run start:admin",
-    "local:ui:customer": "npm run portals:ensure-install && cd portals && npm run start:customer",
+    "localhost:app:portals:install":        "cd portals && npm install",
+    "localhost:app:portals:ensure-install": "cd portals && npm install --prefer-offline --no-audit --no-fund",
+    "localhost:app:ui:admin":    "npm run localhost:app:portals:ensure-install && cd portals && npm run start:admin",
+    "localhost:app:ui:customer": "npm run localhost:app:portals:ensure-install && cd portals && npm run start:customer",
+    "localhost:app:ui:all-up":   "npm run localhost:app:portals:ensure-install && concurrently -k -n admin,customer,open \"cd portals && npm run start:admin\" \"cd portals && npm run start:customer\" \"bash devops/local/ui-open-when-ready.sh\"",
+    "localhost:app:ui:all-down":   "bash devops/local/ui-down.sh",
+    "localhost:app:ui:all-status": "bash devops/local/ui-status.sh",
 
-    "local:ui:run-all": "npm run portals:ensure-install && concurrently -k -n admin,customer \"cd portals && npm run start:admin\" \"cd portals && npm run start:customer\"",
+    "localhost:app:services-ui:all-up":     "concurrently -k -n services,ui \"npm:localhost:app:services:all-up\" \"npm:localhost:app:ui:all-up\"",
+    "localhost:app:services-ui:all-down":   "npm run localhost:app:services:all-down && npm run localhost:app:ui:all-down",
+    "localhost:app:services-ui:all-status": "npm run localhost:app:services:all-status && npm run localhost:app:ui:all-status",
 
-    "local:start": "npm run local:docker:up && concurrently -k \"npm:local:app:run-all\" \"npm:local:ui:run-all\"",
-    "local:stop": "bash devops/local/shutdown-all.sh",
-    "local:status": "bash devops/local/status-all.sh",
+    "localhost:app:all:all-up":     "npm run localhost:app:infra:all-up && concurrently -k -n services,ui \"npm:localhost:app:services:all-up\" \"npm:localhost:app:ui:all-up\"",
+    "localhost:app:all:all-down":   "bash devops/local/shutdown-all.sh",
+    "localhost:app:all:all-status": "bash devops/local/status-all.sh",
 
-    "fx:start": "npm run local:docker:up && pm2 start ecosystem.config.js",
-    "fx:status": "pm2 list && npm run local:docker:status",
-    "fx:stop": "pm2 delete all && npm run local:docker:down",
+    "localhost:app:postgres:up":      "docker compose -f devops/local/postgres/docker-compose.yaml up -d",
+    "localhost:app:postgres:down":    "docker compose -f devops/local/postgres/docker-compose.yaml down -v",
+    "localhost:app:postgres:wait":    "bash devops/local/postgres-wait-for-ready.sh",
+    "localhost:app:postgres:migrate": "mvn spring-boot:run -pl middleware/fx-masterdata-service -Dspring-boot.run.profiles=postgres,migrate",
+    "localhost:app:postgres:run-all": "npm run localhost:app:postgres:up && npm run localhost:app:postgres:wait && npm run localhost:app:postgres:migrate && concurrently -k -n trade,risk,indexer,masterdata \"npm:localhost:app:services:trade\" \"npm:localhost:app:services:risk\" \"npm:localhost:app:services:indexer\" \"mvn spring-boot:run -pl middleware/fx-masterdata-service -Dspring-boot.run.profiles=postgres,no-migrate\"",
 
-    "setup:aws:iam-all": "bash .github/aws/scripts/aws-iam-setup.sh",
-    "destroy:aws:iam-all": "bash .github/aws/scripts/aws-iam-destroy.sh",
+    "localhost:app:secrets:generate": "bash .github/aws/scripts/generate-local-secrets.sh",
+    "localhost:app:secrets:help":     "bash .github/aws/scripts/generate-local-secrets.sh --help",
 
-    "local:app:generate-app-secrets-yaml": "bash .github/aws/scripts/generate-local-secrets.sh",
-    "local:app:generate-app-secrets-yaml-help": "bash .github/aws/scripts/generate-local-secrets.sh --help"
+    "localhost:app:aws:setup:iam-all":   "bash .github/aws/scripts/aws-iam-setup.sh",
+    "localhost:app:aws:destroy:iam-all": "bash .github/aws/scripts/aws-iam-destroy.sh",
+
+    "localhost:app:pm2:start":  "npm run localhost:app:infra:all-up && pm2 start ecosystem.config.js",
+    "localhost:app:pm2:status": "pm2 list && npm run localhost:app:infra:all-status",
+    "localhost:app:pm2:stop":   "pm2 delete all && npm run localhost:app:infra:all-down"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"

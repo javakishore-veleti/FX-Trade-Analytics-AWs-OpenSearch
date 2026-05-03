@@ -59,6 +59,11 @@ Preserve this event-driven decoupling. Do **not** collapse services into direct 
     
     Each `clientFor(region)` call re-resolves the current backend and rebuilds the cached client only if the endpoint changed (so a fresh sync becomes effective without restart). AWS credentials come from `AwsCredentialsProperties` (`fx.aws.access-key/secret-key` → `StaticCredentialsProvider`) when set, else `DefaultCredentialsProvider` chain. The `AwsCredentialsProvider` bean is `@ConditionalOnMissingBean`, so a service that defines its own (e.g. masterdata's `AwsClientsConfig`) wins and shares one provider across both code paths. **Same code path in local dev and ECS — only YAML changes.**
   - `fx-masterdata-service/` — JPA/REST CRUD for currencies, currency pairs, trade books (port **8083**) **plus** an Administration page that tracks AWS OpenSearch deployments (managed clusters + serverless collections). Layered: `api/` → `service/` (interface) + `service/impl/` → `repository/` (Spring Data JPA) → `entity/`. H2 in-memory by default; `--spring.profiles.active=postgres` switches to `localhost:5432/fxdb`. **Schema and seed are owned by Liquibase** (changelog at `src/main/resources/db/changelog/db.changelog-master.yaml`); Hibernate runs in `validate` mode and never alters DDL. To add a new migration: drop a new YAML file in `db/changelog/changes/` and add an `include` line in the master changelog. OpenAPI/Swagger at `/swagger-ui.html`.
+    - **Migration topology profiles** (Postgres only — H2 always runs Liquibase since the in-memory DB lives inside the JVM):
+      - `postgres` — datasource + Liquibase + web. Single-pod local dev.
+      - `postgres,migrate` — runs Liquibase, then `MigrationRunner` exits the JVM (web disabled). One-shot runner: local `npm run localhost:app:postgres:migrate`, prod K8s pre-upgrade Job.
+      - `postgres,no-migrate` — datasource + web, **Liquibase OFF**. Production service pods after the migration Job has run. Removes the 20-pod lock-contention class of bug entirely. Hibernate `ddl-auto: validate` still catches drift at boot.
+      - Lock-wait shortened to 5 min (`change-log-lock-wait-time-minutes`) so a stale `DATABASECHANGELOGLOCK` row from an OOM-killed pod fails the boot fast instead of hanging forever — operator does `liquibase releaseLocks` and Kubernetes restarts.
     - **Dashboard provisioning** (`DashboardInstallService`): NDJSON saved-objects templates ship in `src/main/resources/dashboards/` and are POSTed to `{endpoint}/_dashboards/api/saved_objects/_import?overwrite=true` (multipart/form-data, `osd-xsrf: true` header). Endpoint: `POST /api/admin/opensearch-deployments/{id}/install-dashboards`. **Currently works for local + AWS-with-FGAC only**: AWS managed clusters without FGAC reject the import with `User: anonymous is not authorized` since the Dashboards API expects a browser session or basic-auth, not SigV4. To add a new template: drop a new `.ndjson` file in the `dashboards/` directory — `PostConstruct` enumeration picks it up at startup, no code changes.
     - **OpenSearch deployments tracking** (table `opensearch_deployments`, migrations `006-create-opensearch-deployments.yaml` + `007-add-endpoint-to-opensearch-deployments.yaml`): `OpenSearchDeploymentSyncService` calls AWS `OpenSearchClient.listDomainNames` + `OpenSearchServerlessClient.listCollections` per region in `fx.aws.regions`, upserts each row by `(cloud_provider, provision_type, deployment_name, region)`, marks stale rows `INACTIVE`. Captures the canonical endpoint as a first-class column (`DomainStatus.endpoint()` for managed — promoted to https; `CollectionDetail.collectionEndpoint()` for serverless). Status mapping: managed `processing/created/deleted` → `ACTIVE/PROCESSING/INACTIVE`; serverless `ACTIVE/CREATING/DELETING/FAILED` → `ACTIVE/PROCESSING/PROCESSING/ERROR`. The full `describe-*` response is also stored as JSON in `config_json` for debug. Endpoints: `GET /api/admin/opensearch-deployments` (DB read; consumed by both the admin portal **and** by fx-search-client when `fx.opensearch.source.type=masterdata`), `POST .../sync?region=us-east-1`, `POST .../sync-all`. The DTO synthesizes click-through `dashboardsUrl` (`{endpoint}/_dashboards`) and `awsConsoleUrl` (region-specific deep link to the AWS Console). **The dashboards link will hit "User: anonymous is not authorized" until FGAC is enabled on each domain — that's a separate planned change.**
 - **`devops/local/`** — Docker Compose stacks for Kafka, OpenSearch, Postgres, observability, plus orchestration scripts
@@ -66,7 +71,7 @@ Preserve this event-driven decoupling. Do **not** collapse services into direct 
 - **`portals/`** — Angular 21 workspace with two apps:
   - `projects/admin-portal/` (port **4200**) — Master Data CRUD (currencies, currency-pairs, trade-books) + **Administration → OpenSearch (AWS)** page (lists tracked deployments, sync button per region + sync-all, click-through to OpenSearch Dashboards and the AWS Console). Proxies `/api/master/*` and `/api/admin/*` → `localhost:8083`.
   - `projects/customer-portal/` (port **4201**) — Place Trade form (driven by master-data pairs) + Recent Trades view. Proxies `/api/master/*` → `:8083`, `/api/trades` and `/trades` → `:8080`.
-  - Standalone components, Angular Material, lazy-loaded routes. First-time setup: `npm run portals:install` from repo root.
+  - Standalone components, Angular Material, lazy-loaded routes. First-time setup: `npm run localhost:app:portals:install` from repo root.
 - **`docs/`** — architecture notes, drawio, screenshots
 - Root `pom.xml` declares only `middleware`. Base Java package is `com.jk.fx.trade_mgmt`.
 
@@ -89,35 +94,69 @@ mvn -pl middleware/fx-trade-service -Dtest=ClassName#method test
 
 ### Infra + apps (npm orchestration)
 
+**All scripts follow `localhost:app:<category>:<action>`.** Categories: `infra` (Docker), `services` (Spring services), `ui` (Angular portals), `services-ui` (both), `all` (everything), `postgres` (opt-in DB), `secrets`, `aws`, `pm2`.
+
 ```bash
-npm run local:docker:up        # Kafka, OpenSearch, observability, Postgres
-npm run local:docker:down      # tear down + remove network/volumes
-npm run local:docker:status    # docker ps + port checks (lsof)
+# Infra (Kafka, OpenSearch, Kafka UI; Postgres is opt-in via the postgres tree)
+npm run localhost:app:infra:all-up
+npm run localhost:app:infra:all-down
+npm run localhost:app:infra:all-status
 
-npm run local:app:trade        # mvn spring-boot:run -pl middleware/fx-trade-service
-npm run local:app:risk
-npm run local:app:indexer
-npm run local:app:run-all      # all three via concurrently
+# Microservices — individually or together
+npm run localhost:app:services:trade            # one service (mvn spring-boot:run)
+npm run localhost:app:services:risk
+npm run localhost:app:services:indexer
+npm run localhost:app:services:masterdata       # H2 default
+npm run localhost:app:services:masterdata:postgres   # connects to localhost:5432, expects postgres:up first
+npm run localhost:app:services:all-up           # all four via concurrently
+npm run localhost:app:services:all-down         # kill 8080, 8081, 8082, 8083
+npm run localhost:app:services:all-status
 
-npm run local:status           # full health check (containers + service ports)
-npm run local:stop             # devops/local/shutdown-all.sh
+# UI portals — auto-opens both browser tabs once ng serve is ready
+npm run localhost:app:ui:admin                  # http://localhost:4200
+npm run localhost:app:ui:customer               # http://localhost:4201
+npm run localhost:app:ui:all-up                 # both portals + auto-open browsers
+npm run localhost:app:ui:all-down               # kill 4200, 4201
+npm run localhost:app:ui:all-status
+
+# Services + UI together (no infra — assumes infra:all-up already ran)
+npm run localhost:app:services-ui:all-up
+npm run localhost:app:services-ui:all-down
+npm run localhost:app:services-ui:all-status
+
+# Everything (infra + services + UI)
+npm run localhost:app:all:all-up
+npm run localhost:app:all:all-down              # devops/local/shutdown-all.sh
+npm run localhost:app:all:all-status            # devops/local/status-all.sh
 ```
 
-PM2 mode: `npm run fx:start` / `fx:status` / `fx:stop` (uses `ecosystem.config.js`).
+**Postgres mode** (separate, opt-in — H2 stays the default):
+
+```bash
+npm run localhost:app:postgres:up               # docker compose up -d
+npm run localhost:app:postgres:down             # tear down + drop volume
+npm run localhost:app:postgres:wait             # block until pg_isready
+npm run localhost:app:postgres:migrate          # one-shot Liquibase runner (postgres,migrate profile; exits when done)
+npm run localhost:app:postgres:run-all          # postgres:up → wait → migrate → start services with postgres,no-migrate
+```
+
+The `postgres:run-all` flow is the production-shape pattern: run migrations once via a separate process, then start service pods with Liquibase disabled. In K8s this becomes a Helm pre-upgrade Job + Deployment with `--spring.profiles.active=postgres,no-migrate`.
+
+**Other:**
+
+```bash
+npm run localhost:app:secrets:generate          # writes ./application-local-secrets.yml from env vars
+npm run localhost:app:secrets:help              # full usage doc
+npm run localhost:app:aws:setup:iam-all         # one-time IAM bootstrap (deployer user + policy + group)
+npm run localhost:app:aws:destroy:iam-all
+npm run localhost:app:pm2:start / :status / :stop   # PM2 alternative to concurrently
+```
+
+Each UI script auto-runs `portals:ensure-install` first (`npm install --prefer-offline --no-audit --no-fund` inside `portals/`). It's a no-op when deps are in sync (~1s overhead) and pulls only the diff when `package.json` changed. For a clean install: `npm run localhost:app:portals:install`.
 
 ### Known broken script paths (don't trust blindly)
 
 - `devops/local/docker-all-up.sh` references a root `docker-compose.yaml` and `postgres/docker-compose.yaml` (relative to repo root). Verify those exist before running, or expect early failures from `set -e`.
-
-### UI dev workflow
-
-```bash
-npm run local:ui:admin           # http://localhost:4200 (admin CRUD on master data)
-npm run local:ui:customer        # http://localhost:4201 (place trade + recent trades)
-npm run local:ui:run-all         # both at once
-```
-
-Each script auto-runs `portals:ensure-install` first (`npm install --prefer-offline --no-audit --no-fund` inside `portals/`). It's a no-op when deps are already in sync (~1s overhead) and pulls only the diff when `package.json` changed. If you ever need a clean install, run `npm run portals:install` (no flags) explicitly.
 
 Both Angular apps use `proxy.conf.json` to forward `/api/master/*` to master-data (8083) and the customer portal additionally proxies `/api/trades` and `/trades` to trade-service (8080). No CORS config needed in dev.
 
@@ -204,11 +243,11 @@ Generate it with:
 export FX_DEPLOYER_AWS_ACCESS_KEY_ID=<deployer key id>
 export FX_DEPLOYER_AWS_SECRET_ACCESS_KEY=<deployer secret>
 
-npm run local:app:generate-app-secrets-yaml      # writes ./application-local-secrets.yml at mode 600
-npm run local:app:generate-app-secrets-yaml-help # full usage doc
+npm run localhost:app:secrets:generate           # writes ./application-local-secrets.yml at mode 600
+npm run localhost:app:secrets:help               # full usage doc
 ```
 
-The file is **gitignored** (see `.gitignore`); the committed sibling `application-local-secrets-template.yml` documents the schema. Spring services must be launched from the repo root so the relative path resolves — the `npm run local:app:*` scripts already do this.
+The file is **gitignored** (see `.gitignore`); the committed sibling `application-local-secrets-template.yml` documents the schema. Spring services must be launched from the repo root so the relative path resolves — the `npm run localhost:app:services:*` scripts already do this.
 
 The `optional:` prefix means a missing file is fine; the AWS SDK then falls back to `DefaultCredentialsProvider` (env vars → `~/.aws/credentials` profile → ECS task role → EC2 IMDS), which is the prod path.
 

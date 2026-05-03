@@ -20,9 +20,16 @@ spring:
     password:
 
   # Liquibase owns the schema and seed data — Hibernate just maps to it.
+  # Lock-wait shortened so a stale DATABASECHANGELOGLOCK row (from a pod
+  # OOM-killed mid-migration) fails the boot in 5 minutes instead of hanging
+  # forever — Kubernetes can then restart the pod and an operator can
+  # `liquibase releaseLocks` if needed. Poll rate of 5s keeps the wait
+  # responsive without flooding the DB.
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     enabled: true
+    change-log-lock-wait-time-minutes: 5
+    change-log-lock-poll-rate: 5
 
   jpa:
     hibernate:
@@ -95,3 +102,44 @@ spring:
   h2:
     console:
       enabled: false
+
+# ─────────────────────────────────────────────────────────────────────
+# migrate — one-shot Liquibase runner. Disables the web context so the
+# JVM exits as soon as the changelog finishes. Used by:
+#   - npm run localhost:app:postgres:migrate (local one-shot)
+#   - Kubernetes pre-upgrade Job (production multi-pod story)
+# Combine with another profile that supplies a real datasource, e.g.
+#   --spring.profiles.active=postgres,migrate
+# H2 + migrate is meaningless because H2 in-memory DBs die with the JVM,
+# so the resulting schema can't be observed by any other process.
+# ─────────────────────────────────────────────────────────────────────
+---
+spring:
+  config:
+    activate:
+      on-profile: migrate
+
+  main:
+    web-application-type: none
+
+  liquibase:
+    enabled: true
+
+# ─────────────────────────────────────────────────────────────────────
+# no-migrate — Liquibase OFF. For service pods that boot AFTER an
+# external migration runner (Job / Helm hook) has already applied the
+# changelog. Hibernate stays at ddl-auto: validate so any drift between
+# the deployed JAR's entities and the live schema fails the boot fast.
+# Combine with the datasource profile, e.g.
+#   --spring.profiles.active=postgres,no-migrate
+# Local-dev Postgres single-pod can stay on bare `postgres` (Liquibase on)
+# — no-migrate is for the multi-pod EKS deployment topology.
+# ─────────────────────────────────────────────────────────────────────
+---
+spring:
+  config:
+    activate:
+      on-profile: no-migrate
+
+  liquibase:
+    enabled: false
