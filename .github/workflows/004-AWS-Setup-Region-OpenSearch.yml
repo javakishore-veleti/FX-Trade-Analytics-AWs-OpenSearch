@@ -10,9 +10,14 @@ on:
   workflow_dispatch:
     inputs:
       regions:
-        description: 'Comma-separated AWS regions, or "all" for the demo set (us-east-1, us-west-2, sa-east-1, eu-west-2, eu-central-1, ap-south-1, ap-southeast-1, ap-northeast-1)'
+        description: 'Comma-separated AWS regions (e.g. us-east-1,eu-west-2). Ignored when "select_all_regions" is checked.'
         required: true
-        default: 'all'
+        default: 'us-east-1'
+      select_all_regions:
+        description: 'Check to deploy to all 8 demo regions: us-east-1, us-west-2, sa-east-1, eu-west-2, eu-central-1, ap-south-1, ap-southeast-1, ap-northeast-1. Overrides the regions field above.'
+        required: false
+        default: false
+        type: boolean
       environment:
         description: 'Environment tag'
         required: true
@@ -43,8 +48,9 @@ on:
         default: 'fxadmin'
   workflow_call:
     inputs:
-      regions:           { required: true, type: string }
-      environment:       { required: true, type: string }
+      regions:           { required: true,  type: string }
+      select_all_regions: { required: false, type: boolean, default: false }
+      environment:       { required: true,  type: string }
       instance_type:     { required: false, type: string, default: 't3.small.search' }
       instance_count:    { required: false, type: string, default: '1' }
       ebs_volume_size_gb: { required: false, type: string, default: '10' }
@@ -63,9 +69,18 @@ jobs:
       - id: parse
         run: |
           set -euo pipefail
-          INPUT='${{ inputs.regions }}'
           ALL='us-east-1,us-west-2,sa-east-1,eu-west-2,eu-central-1,ap-south-1,ap-southeast-1,ap-northeast-1'
-          if [ "$INPUT" = "all" ]; then INPUT="$ALL"; fi
+          # The select_all_regions checkbox wins over the regions text field.
+          # We also still accept the literal token "all" in the regions field
+          # for backward compatibility with anyone who typed it.
+          if [ "${{ inputs.select_all_regions }}" = "true" ]; then
+            INPUT="$ALL"
+            echo "::notice::select_all_regions is checked — overriding regions input."
+          elif [ "${{ inputs.regions }}" = "all" ]; then
+            INPUT="$ALL"
+          else
+            INPUT='${{ inputs.regions }}'
+          fi
           # Trim whitespace; convert comma list to JSON array
           ARR=$(echo "$INPUT" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep . | jq -R . | jq -sc .)
           echo "Selected regions: $ARR"

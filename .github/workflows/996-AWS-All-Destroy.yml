@@ -9,9 +9,14 @@ on:
   workflow_dispatch:
     inputs:
       regions:
-        description: 'Comma-separated AWS regions for VPC + OpenSearch destroy, or "all"'
+        description: 'Comma-separated AWS regions for VPC + OpenSearch destroy (e.g. us-east-1,eu-west-2). Ignored when "select_all_regions" is checked.'
         required: true
-        default: 'all'
+        default: 'us-east-1'
+      select_all_regions:
+        description: 'Check to destroy all 8 demo regions: us-east-1, us-west-2, sa-east-1, eu-west-2, eu-central-1, ap-south-1, ap-southeast-1, ap-northeast-1. Overrides the regions field above.'
+        required: false
+        default: false
+        type: boolean
       home_region:
         description: 'Home region for global resources (IAM, ECR)'
         required: true
@@ -46,6 +51,7 @@ jobs:
     secrets: inherit
     with:
       regions: ${{ inputs.regions }}
+      select_all_regions: ${{ inputs.select_all_regions }}
       environment: ${{ inputs.environment }}
       confirm: ${{ inputs.confirm }}
 
@@ -74,6 +80,7 @@ jobs:
     secrets: inherit
     with:
       regions: ${{ inputs.regions }}
+      select_all_regions: ${{ inputs.select_all_regions }}
       environment: ${{ inputs.environment }}
       vpc_overrides_json: ${{ inputs.vpc_overrides_json }}
       confirm: ${{ inputs.confirm }}
