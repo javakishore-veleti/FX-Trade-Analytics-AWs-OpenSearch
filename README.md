@@ -431,6 +431,44 @@ Don't run `995-AWS-All-Setup` straight away — it provisions everything across 
 
 Expected: ~15 minutes for the OpenSearch domain to provision. Watch the workflow logs for green checkmarks. If you see auth errors, your repo secrets are wrong — re-check step 6.
 
+#### What's happening behind the scenes (and where to watch it in AWS Console)
+
+The workflow runs `aws cloudformation deploy` against the [`region-opensearch.yml`](.github/aws/cloudformation/region-opensearch.yml) template. Two AWS console screens give you live visibility while the GitHub workflow is still running:
+
+**a) CloudFormation — watch the stack come up resource-by-resource**
+
+- Open the [AWS Console](https://console.aws.amazon.com/) and switch the **region selector (top-right)** to **us-east-1**.
+- Search for and open **CloudFormation**.
+- You'll see a stack named **`fx-dev-opensearch-us-east-1`** in the list (appears within ~10s of the workflow starting).
+- Click it. Tabs to look at:
+  | Tab | What it shows |
+  |---|---|
+  | **Events** | Live timeline of every resource being created, in order. Most useful tab. |
+  | **Resources** | Which AWS resources have been provisioned (just one — `AWS::OpenSearchService::Domain`). |
+  | **Outputs** | After CREATE_COMPLETE: the domain endpoint URL, ARN, and name. Same values the workflow log prints. |
+  | **Parameters** | The values passed in (Environment, RegionCode, InstanceType, etc.). |
+- Status progression: `CREATE_IN_PROGRESS` → `CREATE_COMPLETE` (~15 min). If it goes to `CREATE_FAILED` → `ROLLBACK_COMPLETE`, expand the **Events** tab and the **first failed event** (red icon) tells you the root cause.
+
+**b) OpenSearch Service — watch the domain itself**
+
+- Same region (us-east-1) → search **OpenSearch Service**.
+- Left sidebar → **Domains**.
+- A domain named **`fxs-dev-us-east-1`** appears once CloudFormation gets to the `Domain` resource (a few minutes in).
+- Status moves: `Loading` (~10-15 min) → `Active`. Once Active, the domain is ready to receive index/search calls.
+
+**If the workflow fails:**
+
+CloudFormation will leave the stack in `ROLLBACK_COMPLETE` state. **You can't re-run a `CREATE` against an existing stack in this state** — you need to delete it first:
+
+- AWS Console → CloudFormation → select `fx-dev-opensearch-us-east-1` → **Delete** button. Confirm. Wait ~5 min for `DELETE_COMPLETE`.
+- Then re-run the GitHub workflow.
+
+Or via CLI:
+```bash
+aws cloudformation delete-stack --stack-name fx-dev-opensearch-us-east-1 --region us-east-1
+aws cloudformation wait stack-delete-complete --stack-name fx-dev-opensearch-us-east-1 --region us-east-1
+```
+
 ### Step 9 · Verify in the AWS Console
 
 - Switch to **us-east-1** (region selector, top-right of the AWS Console).
