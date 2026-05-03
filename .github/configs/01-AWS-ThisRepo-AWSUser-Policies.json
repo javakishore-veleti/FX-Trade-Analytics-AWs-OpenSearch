@@ -1,0 +1,120 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "InfraAndCompute",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:*",
+        "ec2:*",
+        "ecs:*",
+        "eks:*",
+        "ecr:*",
+        "ecr-public:*",
+        "elasticloadbalancing:*",
+        "autoscaling:*",
+        "application-autoscaling:*",
+        "lambda:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DataAndStreaming",
+      "Effect": "Allow",
+      "Action": [
+        "es:*",
+        "aoss:*",
+        "rds:*",
+        "rds-data:*",
+        "kinesis:*",
+        "firehose:*",
+        "kafka:*",
+        "kafkaconnect:*",
+        "s3:*",
+        "s3-object-lambda:*",
+        "dynamodb:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EventsAndMessaging",
+      "Effect": "Allow",
+      "Action": [
+        "events:*",
+        "schemas:*",
+        "sns:*",
+        "sqs:*",
+        "scheduler:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ObservabilityAndDashboards",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:*",
+        "logs:*",
+        "xray:*",
+        "synthetics:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EdgeNetworkingAndDns",
+      "Effect": "Allow",
+      "Action": [
+        "cloudfront:*",
+        "route53:*",
+        "route53resolver:*",
+        "acm:*",
+        "acm-pca:*",
+        "apigateway:*",
+        "globalaccelerator:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IdentitySecretsAndConfig",
+      "Effect": "Allow",
+      "Action": [
+        "iam:*",
+        "sts:*",
+        "kms:*",
+        "secretsmanager:*",
+        "ssm:*",
+        "ssmmessages:*",
+        "sso:*",
+        "sso-directory:*",
+        "identitystore:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BuildOrchestrationAndArtifacts",
+      "Effect": "Allow",
+      "Action": [
+        "codepipeline:*",
+        "codebuild:*",
+        "codedeploy:*",
+        "codeartifact:*",
+        "states:*",
+        "batch:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BillingAndAccountVisibility",
+      "Effect": "Allow",
+      "Action": [
+        "ce:GetCostAndUsage",
+        "ce:GetCostForecast",
+        "cur:DescribeReportDefinitions",
+        "budgets:View*",
+        "tag:GetResources",
+        "tag:GetTagKeys",
+        "tag:GetTagValues"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
