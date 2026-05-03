@@ -1,0 +1,51 @@
+# Defaults for fx-trade-service. Override per-environment.
+image:
+  repository: ""              # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/fx-trade-service
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+replicaCount: 2
+
+service:
+  type: ClusterIP
+  port: 8080
+
+springProfiles: []            # appended to --spring.profiles.active. Defaults to none (uses default profile).
+
+# Kafka coordinates passed as env vars (Spring binds spring.kafka.bootstrap-servers).
+kafka:
+  bootstrapServers: kafka.fx.svc.cluster.local:9092
+
+# How fx-search-client resolves OpenSearch backends.
+#   yaml       — read from a ConfigMap-mounted application.yml (set via spring.config.import)
+#   masterdata — call fx-masterdata-service via the masterdataUrl below
+opensearch:
+  source:
+    type: masterdata
+    masterdataUrl: http://fx-masterdata-service.fx.svc.cluster.local:8083
+    ttlSeconds: 60
+
+aws:
+  region: us-east-1
+  # If using IRSA, leave credentialsSecretName empty + set serviceAccount.annotations.
+  credentialsSecretName: ""
+
+resources:
+  requests: { cpu: 200m, memory: 512Mi }
+  limits:   { cpu: 1,    memory: 1Gi }
+
+probes:
+  liveness:
+    path: /actuator/health/liveness
+    initialDelaySeconds: 60
+    periodSeconds: 15
+  readiness:
+    path: /actuator/health/readiness
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}              # eks.amazonaws.com/role-arn for IRSA

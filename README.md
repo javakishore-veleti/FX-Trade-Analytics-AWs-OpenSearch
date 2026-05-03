@@ -588,10 +588,10 @@ The full implementation roadmap (11 phases, ~70 tasks) lives in [`README_OpenSea
 | Phase 2 — `fx-search-client` factory module | ✅ Shipped |
 | Phase 3 — Indexer multi-region routing | ✅ Shipped |
 | Phase 4 — Trade-service search API refactor | ✅ Shipped |
-| Phase 5 — Customer entity + region binding | ⏳ Pending |
-| Phase 6 — Admin portal Trades Search view | ⏳ Pending |
-| Phase 8 — AWS OpenSearch UI app cross-region setup | ⏳ Pending (the headline demo) |
-| Beyond the plan — Admin OpenSearch deployments tracking, sync, dashboard install, masterdata-driven backend resolution, Postgres prod-shape migration runner | ✅ Shipped |
+| Phase 5 — Customer entity + region binding | ⏳ Pending (lowest demo value — defer) |
+| Phase 6 — Admin portal Trades Search view | ✅ Shipped |
+| Phase 8 — AWS OpenSearch UI app cross-region setup | ✅ 005 workflow drafted; AWS resource type may need a one-line tweak on first run |
+| Beyond the plan — admin OpenSearch deployments tracking + sync + dashboard install (3 NDJSON templates), masterdata-driven backend resolution, Postgres prod-shape migration runner with EKS Helm chart, multi-region trades search in admin + customer portals (cross-region or specific-regions mode + source-region per result), customer-portal demo trade generator (configurable batch), Helm umbrella + per-service charts | ✅ Shipped |
 
 The architectural reasoning behind each decision is in the **Reference** sections below (Deployment modes, Provider abstraction, Pagination strategy, Open design decisions) and the design doc [`docs/design/AWS-OpenSearch-Cross-Region-Use-Cases.md`](docs/design/AWS-OpenSearch-Cross-Region-Use-Cases.md).
 

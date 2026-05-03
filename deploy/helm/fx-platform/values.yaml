@@ -1,0 +1,31 @@
+# Umbrella values. Each subchart's values are namespaced under the chart name.
+# Toggle individual subcharts with .enabled — useful e.g. to skip masterdata
+# in environments that already run a shared instance.
+
+global:
+  imageRegistry: ""           # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com
+  imageTag: "1.0.0"
+
+fx-masterdata:
+  enabled: true
+  image:
+    repository: ""            # set to "{{ .Values.global.imageRegistry }}/fx-masterdata" via -f override
+    tag: "1.0.0"
+
+fx-trade-service:
+  enabled: true
+  image:
+    repository: ""
+    tag: "1.0.0"
+
+fx-risk-service:
+  enabled: true
+  image:
+    repository: ""
+    tag: "1.0.0"
+
+fx-opensearch-indexer:
+  enabled: true
+  image:
+    repository: ""
+    tag: "1.0.0"

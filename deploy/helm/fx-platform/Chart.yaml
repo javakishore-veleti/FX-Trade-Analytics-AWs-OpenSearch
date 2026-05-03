@@ -1,0 +1,33 @@
+apiVersion: v2
+name: fx-platform
+description: |
+  Umbrella chart for the FX Trade Analytics platform. Brings up all four
+  Spring services in one helm install:
+    - fx-masterdata-service     (with pre-upgrade Liquibase Job)
+    - fx-trade-service          (REST + Kafka producer + multi-region search)
+    - fx-risk-service           (Kafka consumer)
+    - fx-opensearch-indexer     (Kafka consumer → OpenSearch)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+dependencies:
+  - name: fx-masterdata
+    version: "0.1.0"
+    repository: "file://../fx-masterdata"
+    condition: fx-masterdata.enabled
+  - name: fx-trade-service
+    version: "0.1.0"
+    repository: "file://../fx-trade-service"
+    condition: fx-trade-service.enabled
+  - name: fx-risk-service
+    version: "0.1.0"
+    repository: "file://../fx-risk-service"
+    condition: fx-risk-service.enabled
+  - name: fx-opensearch-indexer
+    version: "0.1.0"
+    repository: "file://../fx-opensearch-indexer"
+    condition: fx-opensearch-indexer.enabled
+keywords: [fx, opensearch, kafka, umbrella]
+home: https://github.com/javakishore-veleti/FX-Trade-Analytics-AWs-OpenSearch
+maintainers:
+  - name: javakishore-veleti

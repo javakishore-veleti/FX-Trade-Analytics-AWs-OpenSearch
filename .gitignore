@@ -56,3 +56,13 @@ Thumbs.db
 # Template is application-local-secrets-template.yml (committed).
 application-local-secrets.yml
 application-local-secrets.yaml
+
+# Helm umbrella build artifacts. Subchart .tgz packages are reproducible from
+# the dependencies block in Chart.yaml + Chart.lock; don't commit them.
+deploy/helm/*/charts/
+deploy/helm/*/Chart.lock
+
+# Developer-local Helm overrides — never commit secrets-bearing values files.
+deploy/helm/**/values-prod.yaml
+deploy/helm/**/values-stg.yaml
+deploy/helm/**/values-local.yaml

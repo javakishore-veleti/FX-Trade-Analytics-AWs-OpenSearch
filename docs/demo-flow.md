@@ -119,37 +119,50 @@ Customer portal → **Generate demo trades** → enter `100` → watch the progr
 While it's running:
 > "These are flowing through Kafka right now, getting risk-classified, and the indexer is routing each one to the OpenSearch domain that matches the trade's `region` field."
 
-### Beat 3 (45s) — Per-region view (the old way)
+### Beat 3 (40s) — Per-region view (the fragmented way)
 
-> "Traditionally to query across regions, you'd open each region's OpenSearch Dashboards separately. Let me show you what that looks like."
+> "Traditionally to query across regions you'd open each region's OpenSearch Dashboards separately. Let me show you."
 
-Admin portal → click the dashboards icon on `us-east-1` row → log in as `fxadmin` → Discover → see ~33 trades.
+Admin portal → **Administration → OpenSearch (AWS)** → click the dashboards icon on the `us-east-1` row → log in as `fxadmin` → Discover → see ~33 trades.
 
-> "Now I'd have to switch tabs, log in again, see eu-west-2 separately. And again for ap-south-1. Three tabs, three logins, three result sets to mentally merge."
+> "If I want eu-west-2 next, that's a new tab, a new login, a new result set. Three tabs, three logins, three result sets to mentally merge. That's the status quo."
 
-### Beat 4 (90s) — The new way: AWS OpenSearch cross-region UI
+### Beat 4 (45s) — App-side fan-out (our middle ground)
 
-> "Here's the new feature."
+> "Before this AWS launch, here's what we built ourselves: app-side federation. The trade-service queries every regional domain in parallel and merges the results."
 
-Switch to the **AWS OpenSearch UI** tab (your cross-region app from pre-flight step 4).
+Customer portal → **Search Trades** in the top nav → leave **Cross-region (all)** selected → click **Search**.
 
-> "One UI, one login. Behind the scenes it's federating queries to all three domains."
+> "One result set, every region. Notice the Region column on each row — you can see exactly which AWS region each trade was indexed in."
 
-Run a search across `fx-trades-*` → show all ~100 results pooled.
+Switch the radio to **Specific regions** → enter `us-east-1, eu-west-2` → click **Search**.
 
-> "Filter by `riskLevel: HIGH` — that filter applies across all regions simultaneously."
+> "Same UX, but constrained to a subset. We control the federation policy in our own code."
 
-Open the visualization → show "FX Trades — volume by region" → bars for all 3 regions visible from one chart.
+> "It works — but the application team now owns the federation logic, retries, partial-failure handling, ranking. It's our problem forever."
 
-> "Same for the risk distribution donut. We're aggregating data physically located in three AWS regions, into one visualization, with no application-layer code doing federation. The UI just talks to AWS."
+### Beat 5 (75s) — The new way: AWS OpenSearch cross-region UI
 
-### Beat 5 (30s) — Why this matters
+> "Here's the May 2026 launch. AWS now does the federation for you, in a managed UI."
 
-> "Before this feature, cross-region search meant either:
-> - Replicate everything to one global cluster (expensive, latent, single failure domain), or
-> - Build app-layer federation (complex, brittle, hard to operate).
+Switch to the **AWS OpenSearch UI** tab (your cross-region app from pre-flight step 4) → log in.
+
+> "Same query, same three regions — but now it's AWS doing the multi-region read, not us."
+
+Run a search → show ~100 pooled results.
+
+> "Filter by `riskLevel: HIGH` — applies across all regions simultaneously. The 'volume by region' bar chart shows distribution. The risk-distribution donut aggregates across regions."
+
+> "We didn't write a line of federation code for this. AWS owns the UI, the cross-region IAM trust, the result merging, the failure modes. We just register our domains as data sources."
+
+### Beat 6 (30s) — Why this matters
+
+> "Before this feature, cross-region search meant one of three options:
+> - Replicate everything to one global cluster (expensive, latent, single failure domain)
+> - Build app-layer federation (what you saw in beat 4 — works, but the app team owns it forever)
+> - Live with fragmented per-region views (beat 3)
 >
-> AWS gives you the third option: keep data regional, query globally. That's the demo."
+> AWS just gave us a fourth option: keep data regional, query globally, with AWS owning the federation layer. That's the demo."
 
 ---
 
@@ -174,7 +187,8 @@ Cost reminder: each `t3.small.search` domain = ~$50/mo. 3 idle domains = ~$25/mo
 |---|---|---|
 | "Generate demo trades" button greyed out | Pairs not loaded yet, or `/api/config/regions` failed | Refresh the page |
 | Trades succeed locally but no docs in AWS | `fx.opensearch.source.type` still `yaml` | Check `application.yml`, restart services |
-| `/_dashboards` shows anonymous-not-authorized | Domain was created BEFORE FGAC was enabled | Have a backup region pre-recorded; skip live |
+| `/_dashboards` shows anonymous-not-authorized | Domain was created BEFORE FGAC was enabled in the CFN template | Run `004-AWS-Destroy-Region-OpenSearch` then `004-AWS-Setup-Region-OpenSearch` for that region; or have a backup region pre-recorded |
+| Cross-region search returns 0 hits but Trades Search (mode=specific-regions) returns hits | Cross-region UI app's data source registration is stale | In the AWS OpenSearch UI app: Settings → Data sources → re-discover |
 | Cross-region UI shows `0 hits` | Index pattern `fx-trades-*` not refreshed | In OpenSearch UI: Stack Management → Index Patterns → refresh |
 | AWS Console looks different from your prep | Console UI revisions ship constantly | Have a screen recording from prep as fallback |
 

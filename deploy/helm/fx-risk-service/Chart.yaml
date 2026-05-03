@@ -1,0 +1,14 @@
+apiVersion: v2
+name: fx-risk-service
+description: |
+  fx-risk-service — Kafka consumer that classifies trade events into risk
+  buckets (LOW/MEDIUM/HIGH) and publishes the enriched event back to Kafka.
+  No HTTP traffic; pure background worker. Stateless; scale via consumer
+  group rebalance.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords: [fx, kafka, risk, spring-boot]
+home: https://github.com/javakishore-veleti/FX-Trade-Analytics-AWs-OpenSearch
+maintainers:
+  - name: javakishore-veleti

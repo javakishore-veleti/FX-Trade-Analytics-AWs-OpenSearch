@@ -1,0 +1,13 @@
+apiVersion: v2
+name: fx-trade-service
+description: |
+  fx-trade-service — REST entry point + Kafka producer + multi-region search
+  proxy. Reads OpenSearch backends via fx-search-client (yaml or masterdata
+  source). Stateless; scale horizontally.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords: [fx, opensearch, kafka, spring-boot]
+home: https://github.com/javakishore-veleti/FX-Trade-Analytics-AWs-OpenSearch
+maintainers:
+  - name: javakishore-veleti

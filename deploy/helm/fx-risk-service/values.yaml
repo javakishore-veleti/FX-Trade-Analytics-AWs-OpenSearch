@@ -1,0 +1,39 @@
+# Defaults for fx-risk-service. Override per-environment.
+image:
+  repository: ""
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# Risk service is a Kafka consumer — replicaCount controls partition fan-out.
+# Don't exceed the partition count of the trade-events topic or some replicas
+# sit idle.
+replicaCount: 2
+
+service:
+  type: ClusterIP
+  port: 8081                  # Actuator only; risk service has no public REST
+
+springProfiles: []
+
+kafka:
+  bootstrapServers: kafka.fx.svc.cluster.local:9092
+
+resources:
+  requests: { cpu: 200m, memory: 512Mi }
+  limits:   { cpu: 1,    memory: 1Gi }
+
+probes:
+  liveness:
+    path: /actuator/health/liveness
+    initialDelaySeconds: 60
+    periodSeconds: 15
+  readiness:
+    path: /actuator/health/readiness
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}

@@ -1,0 +1,14 @@
+apiVersion: v2
+name: fx-opensearch-indexer
+description: |
+  fx-opensearch-indexer — Kafka consumer that indexes enriched trade events
+  into the OpenSearch domain matching trade.region. Reads backends via
+  fx-search-client (yaml or masterdata source). Stateless; scale via
+  consumer group rebalance.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords: [fx, kafka, opensearch, indexer, spring-boot]
+home: https://github.com/javakishore-veleti/FX-Trade-Analytics-AWs-OpenSearch
+maintainers:
+  - name: javakishore-veleti

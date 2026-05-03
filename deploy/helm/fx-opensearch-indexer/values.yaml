@@ -1,0 +1,48 @@
+# Defaults for fx-opensearch-indexer.
+image:
+  repository: ""
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# Indexer is a Kafka consumer — replicaCount controls partition fan-out.
+# Don't exceed the partition count of the trade-events-enriched topic.
+replicaCount: 2
+
+service:
+  type: ClusterIP
+  port: 8082                  # Actuator only; indexer has no public REST
+
+springProfiles: []
+
+kafka:
+  bootstrapServers: kafka.fx.svc.cluster.local:9092
+
+opensearch:
+  source:
+    type: masterdata
+    masterdataUrl: http://fx-masterdata-service.fx.svc.cluster.local:8083
+    ttlSeconds: 60
+
+aws:
+  region: us-east-1
+  credentialsSecretName: ""
+
+resources:
+  requests: { cpu: 200m, memory: 768Mi }
+  limits:   { cpu: 1,    memory: 1.5Gi }
+
+probes:
+  liveness:
+    path: /actuator/health/liveness
+    initialDelaySeconds: 60
+    periodSeconds: 15
+  readiness:
+    path: /actuator/health/readiness
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
