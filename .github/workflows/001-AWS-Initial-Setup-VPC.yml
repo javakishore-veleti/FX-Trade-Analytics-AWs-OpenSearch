@@ -98,6 +98,35 @@ jobs:
           aws ec2 describe-vpcs --vpc-ids "${{ steps.lookup.outputs.override }}" --region "${{ matrix.region }}" \
             --query 'Vpcs[0].{Id:VpcId,Cidr:CidrBlock,State:State}' --output table
 
+      - name: Auto-recover failed CFN stack (if any) before re-creating
+        if: steps.lookup.outputs.override == ''
+        run: |
+          set -euo pipefail
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "${{ matrix.region }}" >/dev/null 2>&1; then
+            STACK_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" --region "${{ matrix.region }}" \
+              --query 'Stacks[0].StackStatus' --output text)
+            case "$STACK_STATUS" in
+              ROLLBACK_COMPLETE|ROLLBACK_FAILED|CREATE_FAILED|DELETE_FAILED|UPDATE_ROLLBACK_FAILED)
+                echo "::warning::Stack $STACK_NAME is in $STACK_STATUS state in ${{ matrix.region }} — auto-deleting so we can re-create cleanly."
+                aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "${{ matrix.region }}"
+                aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" --region "${{ matrix.region }}"
+                echo "::notice::Failed stack deleted; will create fresh."
+                ;;
+              CREATE_COMPLETE|UPDATE_COMPLETE|UPDATE_ROLLBACK_COMPLETE)
+                echo "::notice::Stack $STACK_NAME exists in $STACK_STATUS state in ${{ matrix.region }}; will run an idempotent update."
+                ;;
+              *_IN_PROGRESS)
+                echo "::error::Stack $STACK_NAME is in transitional state $STACK_STATUS — another deploy is mid-flight. Wait, then re-run."
+                exit 1
+                ;;
+              *)
+                echo "::error::Stack $STACK_NAME is in unexpected state $STACK_STATUS. Inspect in the AWS Console before re-running."
+                exit 1
+                ;;
+            esac
+          fi
+
       - name: Deploy VPC stack in ${{ matrix.region }}
         if: steps.lookup.outputs.override == ''
         run: |

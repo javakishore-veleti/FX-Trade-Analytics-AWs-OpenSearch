@@ -87,14 +87,36 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ matrix.region }}
 
-      - name: Skip-if-exists check (CFN stack or AWS-native domain)
+      - name: Skip-if-exists check + auto-recover failed stacks
         id: precheck
         run: |
           set -euo pipefail
           STATE="create"
           if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "${{ matrix.region }}" >/dev/null 2>&1; then
-            echo "::notice::CFN stack $STACK_NAME already exists in ${{ matrix.region }}; will run an idempotent update (no-fail-on-empty-changeset)."
-            STATE="update"
+            STACK_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" --region "${{ matrix.region }}" \
+              --query 'Stacks[0].StackStatus' --output text)
+            case "$STACK_STATUS" in
+              ROLLBACK_COMPLETE|ROLLBACK_FAILED|CREATE_FAILED|DELETE_FAILED|UPDATE_ROLLBACK_FAILED)
+                echo "::warning::Stack $STACK_NAME is in $STACK_STATUS state in ${{ matrix.region }} — auto-deleting so we can re-create cleanly."
+                aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "${{ matrix.region }}"
+                aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" --region "${{ matrix.region }}"
+                echo "::notice::Failed stack deleted; will create fresh."
+                STATE="create"
+                ;;
+              CREATE_COMPLETE|UPDATE_COMPLETE|UPDATE_ROLLBACK_COMPLETE)
+                echo "::notice::Stack $STACK_NAME exists in $STACK_STATUS state in ${{ matrix.region }}; will run an idempotent update (no-fail-on-empty-changeset)."
+                STATE="update"
+                ;;
+              *_IN_PROGRESS)
+                echo "::error::Stack $STACK_NAME is in transitional state $STACK_STATUS — another deploy is mid-flight. Wait for it to finish, then re-run."
+                exit 1
+                ;;
+              *)
+                echo "::error::Stack $STACK_NAME is in unexpected state $STACK_STATUS. Inspect in the AWS Console before re-running."
+                exit 1
+                ;;
+            esac
           elif aws opensearch describe-domain --domain-name "$DOMAIN_NAME" --region "${{ matrix.region }}" >/dev/null 2>&1; then
             echo "::warning::Domain $DOMAIN_NAME exists in ${{ matrix.region }} but is NOT managed by our CFN stack ($STACK_NAME). Skipping to avoid conflict. Manage it manually or delete it and re-run."
             STATE="skip"

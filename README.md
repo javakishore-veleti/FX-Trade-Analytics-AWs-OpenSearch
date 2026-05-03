@@ -458,16 +458,22 @@ The workflow runs `aws cloudformation deploy` against the [`region-opensearch.ym
 
 **If the workflow fails:**
 
-CloudFormation will leave the stack in `ROLLBACK_COMPLETE` state. **You can't re-run a `CREATE` against an existing stack in this state** — you need to delete it first:
+The setup workflows have **auto-recovery built in** — they detect failed terminal states (`ROLLBACK_COMPLETE`, `ROLLBACK_FAILED`, `CREATE_FAILED`, etc.) and delete the stuck stack automatically before re-creating. So in most cases you can just **re-run the workflow** and it self-heals.
+
+Manual cleanup is only needed if:
+
+- The stack is stuck in a transitional `*_IN_PROGRESS` state (another deploy is mid-flight — wait for it to finish)
+- The stack is in some unusual state the workflow doesn't auto-handle (it'll error out and tell you to inspect in the AWS Console)
+
+For the rare manual case:
 
 - AWS Console → CloudFormation → select `fx-dev-opensearch-us-east-1` → **Delete** button. Confirm. Wait ~5 min for `DELETE_COMPLETE`.
+- Or via CLI:
+  ```bash
+  aws cloudformation delete-stack --stack-name fx-dev-opensearch-us-east-1 --region us-east-1
+  aws cloudformation wait stack-delete-complete --stack-name fx-dev-opensearch-us-east-1 --region us-east-1
+  ```
 - Then re-run the GitHub workflow.
-
-Or via CLI:
-```bash
-aws cloudformation delete-stack --stack-name fx-dev-opensearch-us-east-1 --region us-east-1
-aws cloudformation wait stack-delete-complete --stack-name fx-dev-opensearch-us-east-1 --region us-east-1
-```
 
 ### Step 9 · Verify in the AWS Console
 
