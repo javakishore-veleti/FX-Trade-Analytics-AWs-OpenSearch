@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────────────────
+# Default values for fx-masterdata Helm chart.
+# Override per-environment via:
+#   helm upgrade --install fx-masterdata ./deploy/helm/fx-masterdata \
+#     -f values-prod.yaml \
+#     --set image.tag=1.2.3 \
+#     --namespace fx
+# ─────────────────────────────────────────────────────────────────────
+
+image:
+  repository: ""                # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/fx-masterdata
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# Spring profile composition. The chart overrides spring.liquibase.enabled
+# in the Deployment via the no-migrate profile; the migration Job uses
+# the migrate profile. See middleware/fx-masterdata-service/src/main/
+# resources/application.yml for what each profile does.
+spring:
+  baseProfile: postgres        # always applied; selects the Postgres datasource
+  podProfiles:                 # appended to the Deployment's --spring.profiles.active
+    - no-migrate               # Liquibase OFF — Job ran before us
+  jobProfiles:                 # appended to the migration Job's --spring.profiles.active
+    - migrate                  # Liquibase ON, web=none, exits on completion
+
+datasource:
+  # Externalised — point at AWS RDS, Aurora, etc. Plain values for clarity;
+  # in real prod source these from a SealedSecret or AWS Secrets Manager via
+  # external-secrets-operator (then drop datasource.password from this file).
+  host: fx-postgres.fx.svc.cluster.local
+  port: 5432
+  database: fxdb
+  username: fxuser
+  passwordSecretName: fx-masterdata-db   # K8s Secret with key 'password'
+
+aws:
+  # If pods use IRSA (recommended), leave these blank — the SDK picks up
+  # the IAM role from the projected service account token.
+  region: us-east-1
+  # Optional: reference a Secret holding fx.aws.access-key / fx.aws.secret-key
+  credentialsSecretName: ""
+
+replicaCount: 2
+
+service:
+  type: ClusterIP
+  port: 8083
+  # If exposing externally via an Ingress, configure it separately or extend
+  # this chart with a templates/ingress.yaml — kept minimal here.
+
+resources:
+  requests: { cpu: 100m, memory: 512Mi }
+  limits:   { cpu: 500m, memory: 1Gi }
+
+probes:
+  liveness:
+    path: /actuator/health/liveness
+    initialDelaySeconds: 60
+    periodSeconds: 15
+  readiness:
+    path: /actuator/health/readiness
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+# Pre-upgrade migration Job. Set false ONLY in environments where the schema
+# is managed entirely outside of Helm (e.g. a separate dba-managed pipeline).
+migrationJob:
+  enabled: true
+  backoffLimit: 1              # one retry; if Liquibase fails twice the deploy fails
+  ttlSecondsAfterFinished: 600 # K8s garbage-collects the Job 10 min after success
+
+serviceAccount:
+  create: true
+  name: ""                     # defaults to Release.Name
+  annotations: {}              # for IRSA: eks.amazonaws.com/role-arn: arn:aws:iam::...

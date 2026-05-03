@@ -1,0 +1,50 @@
+{{- if .Values.migrationJob.enabled -}}
+# Pre-upgrade Liquibase runner. Runs ONCE per `helm upgrade` thanks to the
+# helm.sh/hook annotation; service Pods then start with Liquibase OFF
+# (postgres,no-migrate profile). This avoids the 20-pods-all-running-Liquibase
+# DATABASECHANGELOGLOCK contention scenario described in CLAUDE.md.
+#
+# Failure handling: backoffLimit caps retries; if Liquibase fails the Job
+# stays Failed → helm upgrade reports failure → service Pods are NEVER
+# updated. The previous service version keeps serving traffic on the old
+# (compatible) schema.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "fx-masterdata.fullname" . }}-migrate
+  labels: {{- include "fx-masterdata.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrationJob.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.migrationJob.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "fx-masterdata.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "fx-masterdata.serviceAccountName" . }}
+      containers:
+        - name: liquibase-runner
+          image: {{ include "fx-masterdata.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--spring.profiles.active={{ include "fx-masterdata.jobProfiles" . }}"
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://{{ .Values.datasource.host }}:{{ .Values.datasource.port }}/{{ .Values.datasource.database }}"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: {{ .Values.datasource.username | quote }}
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.datasource.passwordSecretName }}
+                  key: password
+          resources:
+            requests: { cpu: 100m, memory: 512Mi }
+            limits:   { cpu: 500m, memory: 1Gi }
+{{- end }}

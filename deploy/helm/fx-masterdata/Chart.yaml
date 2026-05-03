@@ -1,0 +1,20 @@
+apiVersion: v2
+name: fx-masterdata
+description: |
+  fx-masterdata-service — Spring Boot service exposing currency / pair / book
+  CRUD plus the AWS OpenSearch deployments admin sync API.
+
+  Ships with a pre-upgrade Liquibase migration Job so all service pods can run
+  with spring.liquibase.enabled=false (no per-pod DATABASECHANGELOGLOCK
+  contention; deterministic migration timing).
+type: application
+version: 0.1.0          # chart version
+appVersion: "1.0.0"     # masterdata app version
+keywords:
+  - fx
+  - opensearch
+  - liquibase
+  - postgres
+home: https://github.com/javakishore-veleti/FX-Trade-Analytics-AWs-OpenSearch
+maintainers:
+  - name: javakishore-veleti
