@@ -4,33 +4,64 @@ All workflows are **manually triggered** (`workflow_dispatch` — green "Run wor
 
 ## Naming convention
 
-| File pattern                          | Purpose                                    |
-|---------------------------------------|--------------------------------------------|
-| `00X-AWS-Initial-Setup-FOO.yml`       | Create / update one resource (CloudFormation stack) |
-| `00X-AWS-Destroy-FOO.yml`             | Delete the matching stack                  |
-| `995-AWS-All-Setup.yml`               | Orchestrator: runs every setup in order    |
-| `996-AWS-All-Destroy.yml`             | Orchestrator: runs every destroy in reverse order |
+| File pattern                             | Purpose                                    |
+|------------------------------------------|--------------------------------------------|
+| `00X-AWS-Initial-Setup-FOO.yml`          | Create / update one resource (CloudFormation stack), single region |
+| `00X-AWS-Setup-Region-FOO.yml`           | Same, but **multi-region matrix** — provisions one stack per selected region |
+| `00X-AWS-Destroy-FOO.yml`                | Delete the matching stack(s)               |
+| `995-AWS-All-Setup.yml`                  | Orchestrator: runs every setup in order    |
+| `996-AWS-All-Destroy.yml`                | Orchestrator: runs every destroy in reverse order |
 
-Setup and destroy share the same stack name (`fx-${environment}-foo`), so each `Destroy` is just `aws cloudformation delete-stack` against the stack the matching `Initial-Setup` created.
+Setup and destroy share the same stack name (`fx-${environment}-foo` or `fx-${environment}-foo-${region}` for the multi-region ones), so each `Destroy` is just `aws cloudformation delete-stack` against the stack the matching setup created.
 
 ## Current workflows
 
-| #   | Setup                                       | Destroy                                  | What it provisions                |
-|-----|---------------------------------------------|------------------------------------------|-----------------------------------|
-| 001 | `001-AWS-Initial-Setup-VPC.yml`             | `001-AWS-Destroy-VPC.yml`                | VPC, 2 public + 2 private subnets, IGW, optional NAT |
-| 002 | `002-AWS-Initial-Setup-IAM-Roles.yml`       | `002-AWS-Destroy-IAM-Roles.yml`          | ECS task-execution role + per-service task roles     |
-| 003 | `003-AWS-Initial-Setup-ECR.yml`             | `003-AWS-Destroy-ECR.yml`                | One ECR repo per Spring Boot service                 |
-| 995 | `995-AWS-All-Setup.yml`                     | —                                        | Calls 001 → 002 → 003 in order                       |
-| 996 | —                                           | `996-AWS-All-Destroy.yml`                | Calls 003 → 002 → 001 (reverse order)                |
+| #   | Setup                                            | Destroy                                          | Scope        | What it provisions |
+|-----|--------------------------------------------------|--------------------------------------------------|--------------|-------------------|
+| 001 | `001-AWS-Initial-Setup-VPC.yml`                  | `001-AWS-Destroy-VPC.yml`                        | Multi-region | One VPC per region (or reuses an existing VPC if its id is supplied via `vpc_overrides_json`) — 2 public + 2 private subnets, IGW, optional NAT |
+| 002 | `002-AWS-Initial-Setup-IAM-Roles.yml`            | `002-AWS-Destroy-IAM-Roles.yml`                  | Global       | ECS task-execution role + per-service task roles |
+| 003 | `003-AWS-Initial-Setup-ECR.yml`                  | `003-AWS-Destroy-ECR.yml`                        | Single-region | One ECR repo per Spring Boot service |
+| 004 | `004-AWS-Setup-Region-OpenSearch.yml`            | `004-AWS-Destroy-Region-OpenSearch.yml`          | Multi-region | One AWS OpenSearch domain per region (`fxs-{env}-{region}`), idempotent skip-if-exists |
+| 995 | `995-AWS-All-Setup.yml`                          | —                                                | All          | Calls 001 → 002 → 003 → 004 in order |
+| 996 | —                                                | `996-AWS-All-Destroy.yml`                        | All          | Calls 004 → 003 → 002 → 001 (reverse order) |
 
 CloudFormation templates live under `.github/aws/cloudformation/`.
+
+### Multi-region inputs
+
+The multi-region workflows (001-VPC, 004-OpenSearch, 995, 996) take a `regions` input that accepts:
+
+- `all` → expands to the demo set: `us-east-1, us-west-2, sa-east-1, eu-west-2, eu-central-1, ap-south-1, ap-southeast-1, ap-northeast-1` (the 7-region "Balanced" set)
+- A comma-separated list, e.g. `us-east-1,eu-west-2,ap-south-1` for a smaller demo
+
+Each region runs its own job in a matrix — parallel, independent, with its own logs. One region failing does not abort the others (`fail-fast: false`).
+
+### VPC overrides
+
+`001-VPC` setup + destroy take a `vpc_overrides_json` input — a JSON map of `region → existing VPC id`. Regions present in the map have **no VPC stack created** (and on destroy are skipped — we never delete what we didn't create).
+
+```json
+{"us-east-1": "vpc-0abc...", "eu-west-2": "vpc-0def..."}
+```
+
+Regions not in the map get a freshly-provisioned VPC.
+
+### OpenSearch idempotency
+
+`004-AWS-Setup-Region-OpenSearch` checks each region before provisioning:
+
+| Pre-state | Action |
+|---|---|
+| CFN stack `fx-{env}-opensearch-{region}` already exists | Run an idempotent CloudFormation update (`--no-fail-on-empty-changeset`); no-op if nothing to change |
+| Domain `fxs-{env}-{region}` exists in AWS but **not** managed by our CFN stack | Skip with a warning (don't try to create a colliding domain) |
+| Neither | Create the stack and the domain |
 
 ## Adding a new resource
 
 1. Drop a CloudFormation template under `.github/aws/cloudformation/<name>.yml`.
-2. Create `.github/workflows/00X-AWS-Initial-Setup-<NAME>.yml` (copy the closest existing setup as a template).
-3. Create the matching `00X-AWS-Destroy-<NAME>.yml` (copy a destroy as a template).
-4. Add a job to `995-AWS-All-Setup.yml` and `996-AWS-All-Destroy.yml` (in reverse order).
+2. Create `.github/workflows/00X-AWS-Initial-Setup-<NAME>.yml` (or `00X-AWS-Setup-Region-<NAME>.yml` if multi-region) — copy the closest existing setup as a template.
+3. Create the matching `00X-AWS-Destroy-<NAME>.yml`.
+4. Add a job to `995-AWS-All-Setup.yml` and a reverse-order job to `996-AWS-All-Destroy.yml`.
 
 Each setup workflow MUST expose both `workflow_dispatch:` (so you can run it from the UI) and `workflow_call:` (so 995 can chain it).
 
@@ -39,95 +70,79 @@ Each setup workflow MUST expose both `workflow_dispatch:` (so you can run it fro
 - Every **destroy** workflow requires the literal text `DESTROY` in the `confirm` input. Anything else aborts the run.
 - `production` environment is in the dropdown but you are responsible for protecting it via [GitHub Environments](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) — add a required reviewer if you want a manual approval before any prod workflow runs.
 
-## One-time AWS-side bootstrap (OIDC)
+## One-time AWS-side setup (IAM user + access keys)
 
-These workflows authenticate to AWS via **GitHub OIDC** — there are no static AWS access keys in the repo. You set this up **once per AWS account** before running any workflow.
+These workflows authenticate using static AWS access keys stored as GitHub repo secrets. You set this up **once per AWS account** before running any workflow.
 
-### Step 1 — Create the GitHub OIDC provider in AWS
+The IAM policy that defines what the user is allowed to do lives at [`.github/configs/01-AWS-ThisRepo-AWSUser-Policies.json`](../configs/01-AWS-ThisRepo-AWSUser-Policies.json) and full setup instructions are in [`.github/configs/README.md`](../configs/README.md).
 
-```bash
-aws iam create-open-id-connect-provider \
-  --url https://token.actions.githubusercontent.com \
-  --client-id-list sts.amazonaws.com \
-  --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
-```
-
-(The thumbprint is GitHub's intermediate CA fingerprint; verify against [GitHub's docs](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services) if it changes.)
-
-### Step 2 — Create an IAM role the workflows can assume
-
-Save this trust policy as `trust-policy.json` and replace `<ACCOUNT_ID>` and `<OWNER>/<REPO>`:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Principal": { "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com" },
-    "Action": "sts:AssumeRoleWithWebIdentity",
-    "Condition": {
-      "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
-      "StringLike":   { "token.actions.githubusercontent.com:sub": "repo:javakishore-veleti/FX-Trade-Analytics-AWs-OpenSearch:*" }
-    }
-  }]
-}
-```
+**Quick version (6 CLI commands — Customer Managed Policy + Group + User pattern):**
 
 ```bash
-aws iam create-role \
-  --role-name fx-github-actions-deployer \
-  --assume-role-policy-document file://trust-policy.json
+# 1. Create the Customer Managed Policy from the JSON file in the repo
+aws iam create-policy \
+  --policy-name fx-trade-opensearch-policy \
+  --policy-document file://.github/configs/01-AWS-ThisRepo-AWSUser-Policies.json
+# → save the PolicyArn that's returned
 
-# For dev convenience — for production, replace with a tighter policy.
-aws iam attach-role-policy \
-  --role-name fx-github-actions-deployer \
-  --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
+# 2. Create the IAM Group
+aws iam create-group --group-name fx-trade-opensearch-deployers
+
+# 3. Attach the policy to the Group (one-time; reused for every future user)
+aws iam attach-group-policy \
+  --group-name fx-trade-opensearch-deployers \
+  --policy-arn <PolicyArn from step 1>
+
+# 4. Create the User and add to the Group
+aws iam create-user --user-name fx-trade-opensearch-github-deployer
+aws iam add-user-to-group \
+  --user-name fx-trade-opensearch-github-deployer \
+  --group-name fx-trade-opensearch-deployers
+
+# 5. Generate access keys
+aws iam create-access-key --user-name fx-trade-opensearch-github-deployer
+
+# 6. In GitHub: Settings → Secrets and variables → Actions → New repository secret
+#   AWS_ACCESS_KEY_ID       = <AccessKey.AccessKeyId>
+#   AWS_SECRET_ACCESS_KEY   = <AccessKey.SecretAccessKey>
 ```
 
-### Step 3 — Add the role ARN as a repo secret
+To add a future user with the same permissions: just `aws iam add-user-to-group --user-name <new> --group-name fx-trade-opensearch-deployers`. No policy duplication.
 
-```bash
-gh secret set AWS_ROLE_ARN --body "arn:aws:iam::<ACCOUNT_ID>:role/fx-github-actions-deployer"
-```
-
-(Or via Settings → Secrets and variables → Actions → New repository secret.)
-
-That's it — every workflow in this folder picks up the secret automatically.
+After the secrets are set, every workflow in this folder picks them up automatically.
 
 ## How to run
 
 ### Single workflow
 
 1. Go to **Actions** tab on GitHub.
-2. Pick the workflow from the left sidebar (e.g. `001-AWS-Initial-Setup-VPC`).
+2. Pick the workflow from the left sidebar (e.g. `004-AWS-Setup-Region-OpenSearch`).
 3. Click **Run workflow** (top-right).
-4. Fill in the inputs (region, environment, etc.). Defaults work for first-time dev.
+4. Fill in the inputs. For multi-region workflows, leave `regions` as `all` to use the 7-region demo set, or supply a comma-separated subset.
 
 ### Everything at once
 
-Pick `995-AWS-All-Setup` and click Run — it runs 001 → 002 → 003 in sequence.
+Pick `995-AWS-All-Setup` and click Run — it runs 001 → 002 → 003 → 004 in sequence, chaining through `workflow_call`.
 
 To tear down: pick `996-AWS-All-Destroy`, type `DESTROY` in the confirm input, click Run.
 
 ## Stack naming
 
-Every stack is `fx-${environment}-${resource}`:
+| Workflow            | Stack name (dev environment, us-east-1)         |
+|---------------------|-------------------------------------------------|
+| 001-VPC             | `fx-dev-vpc` (per region)                        |
+| 002-IAM             | `fx-dev-iam-roles` (global)                      |
+| 003-ECR             | `fx-dev-ecr` (single-region)                     |
+| 004-OpenSearch      | `fx-dev-opensearch-us-east-1` (per region)       |
 
-| Workflow | Stack name (dev)      |
-|----------|-----------------------|
-| 001-VPC  | `fx-dev-vpc`          |
-| 002-IAM  | `fx-dev-iam-roles`    |
-| 003-ECR  | `fx-dev-ecr`          |
-
-Outputs are exported as `fx-${environment}-${resource}-${output}` so later stacks can `Fn::ImportValue` them.
+OpenSearch domain name (inside the 004 stack): `fxs-dev-us-east-1` — the `fxs-` prefix keeps the name within OpenSearch's 28-character limit even for the longest region codes (`fxs-prod-ap-southeast-1` = 23 chars).
 
 ## Roadmap (next phases — not yet implemented)
 
 | #   | Resource           | Notes                                    |
 |-----|--------------------|------------------------------------------|
-| 004 | RDS Postgres       | For master-data service                  |
-| 005 | MSK                | Managed Kafka (replaces local Confluent) |
-| 006 | OpenSearch Service | Managed search; multi-region future      |
+| 005 | RDS Postgres       | For master-data service                  |
+| 006 | MSK                | Managed Kafka (replaces local Confluent) |
 | 007 | ECS cluster + ALB  | Fargate compute + load balancer          |
 | 008 | Service deploys    | One per microservice                     |
 | 009 | CloudFront + S3    | Hosting for admin & customer portals     |

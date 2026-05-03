@@ -1,0 +1,128 @@
+name: 004-AWS-Setup-Region-OpenSearch
+
+# Provisions one AWS OpenSearch domain per selected region.
+# Idempotent: skips regions where a CFN stack OR a same-named OpenSearch domain
+# already exists (logs a message and continues).
+#
+# Manual button in Actions tab. Also callable from 995-AWS-All-Setup.
+
+on:
+  workflow_dispatch:
+    inputs:
+      regions:
+        description: 'Comma-separated AWS regions, or "all" for the demo set (us-east-1, us-west-2, sa-east-1, eu-west-2, eu-central-1, ap-south-1, ap-southeast-1, ap-northeast-1)'
+        required: true
+        default: 'all'
+      environment:
+        description: 'Environment tag'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, stg, prod]
+      instance_type:
+        description: 'OpenSearch instance type'
+        required: false
+        default: 't3.small.search'
+        type: choice
+        options:
+          - t3.small.search
+          - t3.medium.search
+          - r6g.large.search
+          - r6g.xlarge.search
+      instance_count:
+        description: 'Number of nodes per domain (1 for dev)'
+        required: false
+        default: '1'
+      ebs_volume_size_gb:
+        description: 'EBS volume size per node (GB)'
+        required: false
+        default: '10'
+  workflow_call:
+    inputs:
+      regions:           { required: true, type: string }
+      environment:       { required: true, type: string }
+      instance_type:     { required: false, type: string, default: 't3.small.search' }
+      instance_count:    { required: false, type: string, default: '1' }
+      ebs_volume_size_gb: { required: false, type: string, default: '10' }
+
+permissions:
+  contents: read
+
+jobs:
+  # Step 1: parse the regions input into a JSON array for the matrix.
+  parse-regions:
+    runs-on: ubuntu-latest
+    outputs:
+      regions_json: ${{ steps.parse.outputs.regions_json }}
+    steps:
+      - id: parse
+        run: |
+          set -euo pipefail
+          INPUT='${{ inputs.regions }}'
+          ALL='us-east-1,us-west-2,sa-east-1,eu-west-2,eu-central-1,ap-south-1,ap-southeast-1,ap-northeast-1'
+          if [ "$INPUT" = "all" ]; then INPUT="$ALL"; fi
+          # Trim whitespace; convert comma list to JSON array
+          ARR=$(echo "$INPUT" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep . | jq -R . | jq -sc .)
+          echo "Selected regions: $ARR"
+          echo "regions_json=$ARR" >> "$GITHUB_OUTPUT"
+
+  # Step 2: per-region matrix. Each region runs in parallel.
+  setup-region:
+    needs: parse-regions
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        region: ${{ fromJson(needs.parse-regions.outputs.regions_json) }}
+    env:
+      STACK_NAME: fx-${{ inputs.environment }}-opensearch-${{ matrix.region }}
+      DOMAIN_NAME: fxs-${{ inputs.environment }}-${{ matrix.region }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials for ${{ matrix.region }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ matrix.region }}
+
+      - name: Skip-if-exists check (CFN stack or AWS-native domain)
+        id: precheck
+        run: |
+          set -euo pipefail
+          STATE="create"
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "${{ matrix.region }}" >/dev/null 2>&1; then
+            echo "::notice::CFN stack $STACK_NAME already exists in ${{ matrix.region }}; will run an idempotent update (no-fail-on-empty-changeset)."
+            STATE="update"
+          elif aws opensearch describe-domain --domain-name "$DOMAIN_NAME" --region "${{ matrix.region }}" >/dev/null 2>&1; then
+            echo "::warning::Domain $DOMAIN_NAME exists in ${{ matrix.region }} but is NOT managed by our CFN stack ($STACK_NAME). Skipping to avoid conflict. Manage it manually or delete it and re-run."
+            STATE="skip"
+          fi
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy OpenSearch stack in ${{ matrix.region }}
+        if: steps.precheck.outputs.state != 'skip'
+        run: |
+          set -euo pipefail
+          aws cloudformation deploy \
+            --stack-name "$STACK_NAME" \
+            --region "${{ matrix.region }}" \
+            --template-file .github/aws/cloudformation/region-opensearch.yml \
+            --parameter-overrides \
+              Environment=${{ inputs.environment }} \
+              RegionCode=${{ matrix.region }} \
+              InstanceType=${{ inputs.instance_type }} \
+              InstanceCount=${{ inputs.instance_count }} \
+              EbsVolumeSizeGB=${{ inputs.ebs_volume_size_gb }} \
+              AccessRoleArn=${{ secrets.AWS_ROLE_ARN }} \
+            --no-fail-on-empty-changeset \
+            --tags Project=fx-trade-analytics Environment=${{ inputs.environment }} Region=${{ matrix.region }}
+
+      - name: Show stack outputs
+        if: steps.precheck.outputs.state != 'skip'
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "${{ matrix.region }}" \
+            --query 'Stacks[0].Outputs' --output table

@@ -1,82 +1,120 @@
 name: 001-AWS-Initial-Setup-VPC
 
-# Manual button in Actions tab. Also callable from 995-AWS-All-Setup.
+# Provisions VPCs across one or more AWS regions. For any region listed in
+# `vpc_overrides_json` the workflow records the user-supplied VPC id and
+# skips creation. For all other selected regions a fresh VPC is created via
+# the same CloudFormation template.
+#
+# Manual button in the Actions tab. Also callable from 995-AWS-All-Setup.
+
 on:
   workflow_dispatch:
     inputs:
-      aws_region:
-        description: 'AWS region (e.g. us-east-1)'
+      regions:
+        description: 'Comma-separated AWS regions, or "all" for the demo set'
         required: true
-        default: 'us-east-1'
+        default: 'all'
       environment:
         description: 'Environment tag'
         required: true
         default: 'dev'
         type: choice
         options: [dev, stg, prod]
-      existing_vpc_id:
-        description: 'If set, skip creation and just record this VPC id (no stack created).'
+      vpc_overrides_json:
+        description: 'JSON map of region -> existing VPC id (skips create for those). Example: {"us-east-1":"vpc-abc123","eu-west-1":"vpc-def456"}'
         required: false
-        default: ''
+        default: '{}'
       vpc_cidr:
-        description: 'CIDR for the new VPC (ignored if existing_vpc_id is set)'
+        description: 'CIDR for newly created VPCs (regions in overrides ignore this)'
         required: false
         default: '10.0.0.0/16'
       create_nat_gateway:
-        description: 'Create a NAT gateway (~$32/mo)?'
+        description: 'Create a NAT gateway per new VPC (~$32/mo each)?'
         required: false
         default: 'true'
         type: choice
         options: ['true', 'false']
   workflow_call:
     inputs:
-      aws_region: { required: true, type: string }
-      environment: { required: true, type: string }
-      existing_vpc_id: { required: false, type: string, default: '' }
-      vpc_cidr: { required: false, type: string, default: '10.0.0.0/16' }
+      regions:            { required: true, type: string }
+      environment:        { required: true, type: string }
+      vpc_overrides_json: { required: false, type: string, default: '{}' }
+      vpc_cidr:           { required: false, type: string, default: '10.0.0.0/16' }
       create_nat_gateway: { required: false, type: string, default: 'true' }
 
 permissions:
-  id-token: write   # for OIDC AWS auth
   contents: read
 
 jobs:
-  vpc:
+  parse-regions:
     runs-on: ubuntu-latest
+    outputs:
+      regions_json: ${{ steps.parse.outputs.regions_json }}
+    steps:
+      - id: parse
+        run: |
+          set -euo pipefail
+          INPUT='${{ inputs.regions }}'
+          ALL='us-east-1,us-west-2,sa-east-1,eu-west-2,eu-central-1,ap-south-1,ap-southeast-1,ap-northeast-1'
+          if [ "$INPUT" = "all" ]; then INPUT="$ALL"; fi
+          ARR=$(echo "$INPUT" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep . | jq -R . | jq -sc .)
+          echo "Selected regions: $ARR"
+          # Validate the override JSON parses cleanly
+          echo '${{ inputs.vpc_overrides_json }}' | jq empty
+          echo "regions_json=$ARR" >> "$GITHUB_OUTPUT"
+
+  vpc:
+    needs: parse-regions
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        region: ${{ fromJson(needs.parse-regions.outputs.regions_json) }}
     env:
       STACK_NAME: fx-${{ inputs.environment }}-vpc
-      AWS_REGION: ${{ inputs.aws_region }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials for ${{ matrix.region }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ inputs.aws_region }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ matrix.region }}
 
-      - name: Use existing VPC (skip creation)
-        if: inputs.existing_vpc_id != ''
+      - name: Resolve override for ${{ matrix.region }}
+        id: lookup
         run: |
-          echo "Skipping CloudFormation; reusing VPC ${{ inputs.existing_vpc_id }}."
-          aws ec2 describe-vpcs --vpc-ids "${{ inputs.existing_vpc_id }}" \
+          set -euo pipefail
+          OVR=$(echo '${{ inputs.vpc_overrides_json }}' | jq -r --arg r '${{ matrix.region }}' '.[$r] // ""')
+          echo "override=$OVR" >> "$GITHUB_OUTPUT"
+          if [ -n "$OVR" ]; then
+            echo "::notice::Region ${{ matrix.region }} will reuse existing VPC $OVR (no stack created)."
+          fi
+
+      - name: Reuse existing VPC (skip stack)
+        if: steps.lookup.outputs.override != ''
+        run: |
+          aws ec2 describe-vpcs --vpc-ids "${{ steps.lookup.outputs.override }}" --region "${{ matrix.region }}" \
             --query 'Vpcs[0].{Id:VpcId,Cidr:CidrBlock,State:State}' --output table
 
-      - name: Deploy VPC stack
-        if: inputs.existing_vpc_id == ''
+      - name: Deploy VPC stack in ${{ matrix.region }}
+        if: steps.lookup.outputs.override == ''
         run: |
+          set -euo pipefail
           aws cloudformation deploy \
             --stack-name "$STACK_NAME" \
+            --region "${{ matrix.region }}" \
             --template-file .github/aws/cloudformation/vpc.yml \
             --parameter-overrides \
               Environment=${{ inputs.environment }} \
               VpcCidr=${{ inputs.vpc_cidr }} \
               CreateNatGateway=${{ inputs.create_nat_gateway }} \
             --no-fail-on-empty-changeset \
-            --tags Project=fx-trade-analytics Environment=${{ inputs.environment }}
+            --tags Project=fx-trade-analytics Environment=${{ inputs.environment }} Region=${{ matrix.region }}
 
       - name: Show stack outputs
-        if: inputs.existing_vpc_id == ''
+        if: steps.lookup.outputs.override == ''
         run: |
-          aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+          aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "${{ matrix.region }}" \
             --query 'Stacks[0].Outputs' --output table

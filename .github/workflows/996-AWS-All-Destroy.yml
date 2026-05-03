@@ -4,11 +4,16 @@ name: 996-AWS-All-Destroy
 # (apps first, foundations last). All children require the literal token
 # 'DESTROY' in the confirm input — this workflow forwards it.
 # Add new steps in reverse order of their setup numbers.
+
 on:
   workflow_dispatch:
     inputs:
-      aws_region:
-        description: 'AWS region'
+      regions:
+        description: 'Comma-separated AWS regions for VPC + OpenSearch destroy, or "all"'
+        required: true
+        default: 'all'
+      home_region:
+        description: 'Home region for global resources (IAM, ECR)'
         required: true
         default: 'us-east-1'
       environment:
@@ -21,6 +26,10 @@ on:
         description: 'Type DESTROY to confirm. Forwarded to every child workflow.'
         required: true
         default: ''
+      vpc_overrides_json:
+        description: 'JSON map of region -> VPC id that was user-supplied (those regions are SKIPPED on destroy)'
+        required: false
+        default: '{}'
       purge_ecr_images:
         description: 'Purge ECR images before deleting the ECR stack?'
         required: false
@@ -29,15 +38,23 @@ on:
         options: ['true', 'false']
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
+  opensearch:
+    uses: ./.github/workflows/004-AWS-Destroy-Region-OpenSearch.yml
+    secrets: inherit
+    with:
+      regions: ${{ inputs.regions }}
+      environment: ${{ inputs.environment }}
+      confirm: ${{ inputs.confirm }}
+
   ecr:
+    needs: opensearch
     uses: ./.github/workflows/003-AWS-Destroy-ECR.yml
     secrets: inherit
     with:
-      aws_region: ${{ inputs.aws_region }}
+      aws_region: ${{ inputs.home_region }}
       environment: ${{ inputs.environment }}
       confirm: ${{ inputs.confirm }}
       purge_images: ${{ inputs.purge_ecr_images }}
@@ -47,7 +64,7 @@ jobs:
     uses: ./.github/workflows/002-AWS-Destroy-IAM-Roles.yml
     secrets: inherit
     with:
-      aws_region: ${{ inputs.aws_region }}
+      aws_region: ${{ inputs.home_region }}
       environment: ${{ inputs.environment }}
       confirm: ${{ inputs.confirm }}
 
@@ -56,6 +73,7 @@ jobs:
     uses: ./.github/workflows/001-AWS-Destroy-VPC.yml
     secrets: inherit
     with:
-      aws_region: ${{ inputs.aws_region }}
+      regions: ${{ inputs.regions }}
       environment: ${{ inputs.environment }}
+      vpc_overrides_json: ${{ inputs.vpc_overrides_json }}
       confirm: ${{ inputs.confirm }}

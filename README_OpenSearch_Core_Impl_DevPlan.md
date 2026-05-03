@@ -90,15 +90,18 @@ Phases 2, 3, 4, 5, 7, 10 can largely proceed in parallel once decisions are clos
 
 | ID | Status | Task | Notes |
 |---|---|---|---|
-| T1.1 | ⏸ | Refactor `001-AWS-Initial-Setup-VPC.yml` to accept multi-region selection + per-region optional `existing_vpc_id` | Blocked on D-14 |
-| T1.2 | ⏸ | Update `001-AWS-Destroy-VPC.yml` to skip VPCs that were provided as `existing_vpc_id` (don't delete what we didn't create) | Blocked on D-14 |
-| T1.3 | ⏸ | Build CloudFormation template `aws/cloudformation/region-opensearch.yml` for one regional OpenSearch domain (instance type, EBS, fine-grained access, tags) | Blocked on D-10, D-12 |
-| T1.4 | ⏸ | Build `004-AWS-Setup-Region-OpenSearch.yml` workflow with multi-region selection input + idempotent skip-if-exists check | Blocked on D-12 |
-| T1.5 | ☐ | Build `004-AWS-Destroy-Region-OpenSearch.yml` with confirm-token + per-region selection | — |
-| T1.6 | ⏸ | Update `995-AWS-All-Setup.yml` to chain `001-VPC` → `002-IAM-Roles` → `003-ECR` → `004-Region-OpenSearch` | Blocked on T1.4 |
-| T1.7 | ☐ | Update `996-AWS-All-Destroy.yml` to chain in reverse order including the new `004` destroy | — |
-| T1.8 | ☐ | Document the new workflows in `.github/workflows/README.md` (already present; just append `004` row) | — |
-| T1.9 | ☐ | End-to-end smoke: run `995-AWS-All-Setup` against a sandbox account, verify all stacks land cleanly | Cost ~$2/hr while running |
+| T1.1 | ✅ | Refactor `001-AWS-Initial-Setup-VPC.yml` to accept multi-region selection + per-region optional `existing_vpc_id` | Comma-separated `regions` input + `vpc_overrides_json` map; matrix strategy fans out per region |
+| T1.2 | ✅ | Update `001-AWS-Destroy-VPC.yml` to skip VPCs that were provided as `existing_vpc_id` (don't delete what we didn't create) | Per-region matrix; both override-skip and stack-not-present-skip handled |
+| T1.3 | ✅ | Build CloudFormation template `aws/cloudformation/region-opensearch.yml` for one regional OpenSearch domain (instance type, EBS, fine-grained access, tags) | Public endpoint, IAM auth, encryption at rest + node-to-node, t3.small.search default; `fxs-{env}-{region}` naming |
+| T1.4 | ✅ | Build `004-AWS-Setup-Region-OpenSearch.yml` workflow with multi-region selection input + idempotent skip-if-exists check | Detects existing CFN stack (idempotent update) + existing AWS-native domain (skip with warning) |
+| T1.5 | ✅ | Build `004-AWS-Destroy-Region-OpenSearch.yml` with confirm-token + per-region selection | DESTROY confirm gate + per-region skip-if-not-present |
+| T1.6 | ✅ | Update `995-AWS-All-Setup.yml` to chain `001-VPC` → `002-IAM-Roles` → `003-ECR` → `004-Region-OpenSearch` | Single `regions` input + `home_region` for global resources (IAM, ECR) |
+| T1.7 | ✅ | Update `996-AWS-All-Destroy.yml` to chain in reverse order including the new `004` destroy | 004 → 003 → 002 → 001 reverse chain, forwards `confirm` token |
+| T1.8 | ✅ | Document the new workflows in `.github/workflows/README.md` (already present; just append `004` row) | Rewritten — multi-region inputs, VPC-overrides, OpenSearch idempotency sections; access-keys auth (replaced OIDC bootstrap) |
+| T1.9 | ☐ | End-to-end smoke: run `995-AWS-All-Setup` against a sandbox account, verify all stacks land cleanly | Cost ~$2/hr while running. **Manual — you run this against your AWS account once the IAM user + secrets are set up.** |
+| T1.10 | ✅ | Switch all 10 workflows from OIDC to access-keys auth (per D-3 update mid-Phase) | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` repo secrets; `id-token: write` permission removed |
+| T1.11 | ✅ | Add `.github/configs/01-AWS-ThisRepo-AWSUser-Policies.json` — comprehensive admin-shaped IAM policy | 8 statement blocks covering compute, data + streaming, events, observability, edge + DNS, identity + secrets, build, billing read |
+| T1.12 | ✅ | Add `.github/configs/README.md` — IAM user setup instructions for `fx-trade-opensearch-github-deployer` | 4-CLI-command quick start |
 
 ### Acceptance criteria
 

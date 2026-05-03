@@ -1,9 +1,8 @@
-name: 001-AWS-Destroy-VPC
+name: 004-AWS-Destroy-Region-OpenSearch
 
-# Tears down the VPC CloudFormation stack in each selected region. Regions
-# whose VPC was supplied as an override (i.e. NOT created by this workflow)
-# are skipped — we never delete what we didn't create.
-# Refuses to run unless the literal token DESTROY is supplied.
+# Tears down the AWS OpenSearch domain CloudFormation stack in each selected
+# region. Refuses to run unless the literal token DESTROY is supplied.
+# Skips regions where no managed stack exists (logs a message and continues).
 
 on:
   workflow_dispatch:
@@ -18,20 +17,15 @@ on:
         default: 'dev'
         type: choice
         options: [dev, stg, prod]
-      vpc_overrides_json:
-        description: 'JSON map of region -> existing VPC id (those regions are SKIPPED — we never delete a supplied VPC). Example: {"us-east-1":"vpc-abc123"}'
-        required: false
-        default: '{}'
       confirm:
         description: 'Type DESTROY to confirm. Anything else aborts.'
         required: true
         default: ''
   workflow_call:
     inputs:
-      regions:            { required: true, type: string }
-      environment:        { required: true, type: string }
-      vpc_overrides_json: { required: false, type: string, default: '{}' }
-      confirm:            { required: true, type: string }
+      regions:     { required: true, type: string }
+      environment: { required: true, type: string }
+      confirm:     { required: true, type: string }
 
 permissions:
   contents: read
@@ -56,10 +50,9 @@ jobs:
           if [ "$INPUT" = "all" ]; then INPUT="$ALL"; fi
           ARR=$(echo "$INPUT" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep . | jq -R . | jq -sc .)
           echo "Selected regions for destroy: $ARR"
-          echo '${{ inputs.vpc_overrides_json }}' | jq empty
           echo "regions_json=$ARR" >> "$GITHUB_OUTPUT"
 
-  destroy-vpc:
+  destroy-region:
     needs: parse-regions
     runs-on: ubuntu-latest
     strategy:
@@ -67,7 +60,7 @@ jobs:
       matrix:
         region: ${{ fromJson(needs.parse-regions.outputs.regions_json) }}
     env:
-      STACK_NAME: fx-${{ inputs.environment }}-vpc
+      STACK_NAME: fx-${{ inputs.environment }}-opensearch-${{ matrix.region }}
     steps:
       - name: Configure AWS credentials for ${{ matrix.region }}
         uses: aws-actions/configure-aws-credentials@v4
@@ -76,20 +69,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ matrix.region }}
 
-      - name: Skip if region was an override
-        id: lookup
-        run: |
-          set -euo pipefail
-          OVR=$(echo '${{ inputs.vpc_overrides_json }}' | jq -r --arg r '${{ matrix.region }}' '.[$r] // ""')
-          if [ -n "$OVR" ]; then
-            echo "::notice::Region ${{ matrix.region }} VPC ($OVR) was user-supplied — NOT deleting."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Skip if no managed stack exists
-        if: steps.lookup.outputs.skip == 'false'
+      - name: Skip-if-not-present check
         id: precheck
         run: |
           set -euo pipefail
@@ -100,8 +80,8 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Delete VPC stack in ${{ matrix.region }}
-        if: steps.lookup.outputs.skip == 'false' && steps.precheck.outputs.exists == 'true'
+      - name: Delete OpenSearch stack in ${{ matrix.region }}
+        if: steps.precheck.outputs.exists == 'true'
         run: |
           set -euo pipefail
           echo "Deleting stack $STACK_NAME in ${{ matrix.region }} ..."
