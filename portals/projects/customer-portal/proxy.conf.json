@@ -5,6 +5,21 @@
     "changeOrigin": true,
     "logLevel": "debug"
   },
+  "/api/admin": {
+    "target": "http://localhost:8083",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug"
+  },
+  "/api/trades-search": {
+    "target": "http://localhost:8080",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": {
+      "^/api/trades-search": "/trades/search"
+    }
+  },
   "/api/trades": {
     "target": "http://localhost:8080",
     "secure": false,

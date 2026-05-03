@@ -29,6 +29,10 @@ import { MatButtonModule } from '@angular/material/button';
             <mat-icon>receipt_long</mat-icon>
             <span>Recent Trades</span>
           </a>
+          <a class="nav__link" routerLink="/search" routerLinkActive="nav__link--active">
+            <mat-icon>travel_explore</mat-icon>
+            <span>Search Trades</span>
+          </a>
         </nav>
 
         <div class="topbar__right">

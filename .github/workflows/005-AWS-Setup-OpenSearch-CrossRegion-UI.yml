@@ -1,0 +1,239 @@
+name: 005-AWS-Setup-OpenSearch-CrossRegion-UI
+
+# Provisions the AWS OpenSearch cross-region UI application — the headline
+# subject of the May 2026 OpenSearch announcement. One UI app, federating
+# queries across N regional domains.
+#
+# Inputs follow the same shape as 004 — comma-separated regions plus an
+# 'all' checkbox. The workflow looks up each region's CFN-managed
+# OpenSearch domain ARN (via the export 'fx-${env}-opensearch-${region}-arn'
+# published by 004), then deploys a single cross-region UI stack in the
+# home region with every domain wired in as a data source.
+#
+# ⚠ Uncertainty: the AWS CloudFormation resource type for this feature is
+# brand new (launched 2026-05-01). The template uses
+# AWS::OpenSearchService::Application as the best-guess resource type
+# based on AWS naming conventions. If the deploy fails with
+# 'unknown resource type' or property errors, screenshot the error and
+# we adjust the template — the workflow structure / inputs / discovery
+# logic are unaffected.
+#
+# Manual button in Actions tab. Also callable from a future 995 chain.
+
+on:
+  workflow_dispatch:
+    inputs:
+      regions:
+        description: 'Comma-separated AWS regions whose domains the UI federates over (e.g. us-east-1,eu-west-2,ap-south-1). Each region MUST already have a domain provisioned via 004.'
+        required: true
+        default: 'us-east-1'
+      select_all_regions:
+        description: 'Check to federate over all 8 demo regions: us-east-1, us-west-2, sa-east-1, eu-west-2, eu-central-1, ap-south-1, ap-southeast-1, ap-northeast-1. Overrides the regions field above.'
+        required: false
+        default: false
+        type: boolean
+      home_region:
+        description: 'Region where the UI application itself lives (single-region resource; users navigate to its URL from anywhere).'
+        required: true
+        default: 'us-east-1'
+      environment:
+        description: 'Environment tag — must match what 004 used.'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, stg, prod]
+      app_name:
+        description: 'Logical name for the UI application'
+        required: false
+        default: 'fx-cross-region-ui'
+  workflow_call:
+    inputs:
+      regions:           { required: true,  type: string }
+      select_all_regions: { required: false, type: boolean, default: false }
+      home_region:       { required: true,  type: string }
+      environment:       { required: true,  type: string }
+      app_name:          { required: false, type: string, default: 'fx-cross-region-ui' }
+
+permissions:
+  contents: read
+
+jobs:
+  parse-regions:
+    runs-on: ubuntu-latest
+    outputs:
+      regions_csv: ${{ steps.parse.outputs.regions_csv }}
+    steps:
+      - id: parse
+        run: |
+          set -euo pipefail
+          ALL='us-east-1,us-west-2,sa-east-1,eu-west-2,eu-central-1,ap-south-1,ap-southeast-1,ap-northeast-1'
+          if [ "${{ inputs.select_all_regions }}" = "true" ]; then
+            INPUT="$ALL"
+            echo "::notice::select_all_regions is checked — federating across every demo region."
+          elif [ "${{ inputs.regions }}" = "all" ]; then
+            INPUT="$ALL"
+          else
+            INPUT='${{ inputs.regions }}'
+          fi
+          # Trim, dedupe, comma-rejoin
+          CLEAN=$(echo "$INPUT" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep . | awk '!seen[$0]++' | paste -sd, -)
+          echo "Selected regions: $CLEAN"
+          echo "regions_csv=$CLEAN" >> "$GITHUB_OUTPUT"
+
+  discover-arns:
+    needs: parse-regions
+    runs-on: ubuntu-latest
+    outputs:
+      arn_list: ${{ steps.discover.outputs.arn_list }}
+    steps:
+      - name: Discover each region's OpenSearch domain ARN
+        id: discover
+        env:
+          REGIONS_CSV: ${{ needs.parse-regions.outputs.regions_csv }}
+          ENV: ${{ inputs.environment }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra REGIONS <<< "$REGIONS_CSV"
+          ARNS=()
+          MISSING=()
+          for R in "${REGIONS[@]}"; do
+            EXPORT_NAME="fx-${ENV}-opensearch-${R}-arn"
+            ARN=$(AWS_REGION="$R" aws cloudformation list-exports \
+                    --query "Exports[?Name=='${EXPORT_NAME}'].Value | [0]" \
+                    --output text 2>/dev/null || true)
+            if [ -z "$ARN" ] || [ "$ARN" = "None" ]; then
+              MISSING+=("$R")
+              echo "::warning::No CFN export '$EXPORT_NAME' in region $R — domain not provisioned via 004 yet?"
+            else
+              echo "::notice::$R → $ARN"
+              ARNS+=("$ARN")
+            fi
+          done
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "::error::Missing OpenSearch domains in: ${MISSING[*]}. Run 004-AWS-Setup-Region-OpenSearch for those regions first."
+            exit 1
+          fi
+          if [ ${#ARNS[@]} -lt 1 ]; then
+            echo "::error::No domain ARNs resolved — nothing to federate."
+            exit 1
+          fi
+          ARN_LIST=$(IFS=,; echo "${ARNS[*]}")
+          echo "arn_list=$ARN_LIST" >> "$GITHUB_OUTPUT"
+
+  deploy-ui:
+    needs: discover-arns
+    runs-on: ubuntu-latest
+    env:
+      STACK_NAME: fx-${{ inputs.environment }}-opensearch-cross-region-ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials in home region (${{ inputs.home_region }})
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.home_region }}
+
+      - name: Generate CloudFormation template (one DataSources entry per region)
+        env:
+          ARN_LIST: ${{ needs.discover-arns.outputs.arn_list }}
+          APP_NAME: ${{ inputs.app_name }}
+          ENV: ${{ inputs.environment }}
+        run: |
+          python3 - <<'PY'
+          import os, yaml
+          arns = [a for a in os.environ['ARN_LIST'].split(',') if a]
+          app_name = os.environ['APP_NAME']
+          env = os.environ['ENV']
+
+          # ── BEST-GUESS resource type for the May-2026 cross-region UI feature ──
+          # AWS hasn't yet (as of this commit) confirmed the canonical CFN
+          # resource type / property names. The structure below follows AWS's
+          # naming pattern (Service::Resource) and the visible properties from
+          # the launch announcement (Name, list of domain data sources). If
+          # CloudFormation rejects this template with 'unknown resource type'
+          # or 'property not recognised', adjust *only* the type string and/or
+          # property keys here — the workflow's discovery + lifecycle logic
+          # is independent of these names.
+          template = {
+              'AWSTemplateFormatVersion': '2010-09-09',
+              'Description': 'FX Trade Analytics — AWS OpenSearch cross-region UI application federating queries across {} regional domain(s).'.format(len(arns)),
+              'Resources': {
+                  'CrossRegionApp': {
+                      'Type': 'AWS::OpenSearchService::Application',
+                      'Properties': {
+                          'Name': f'{app_name}-{env}',
+                          'DataSources': [
+                              {'DataSourceArn': arn, 'DataSourceDescription': f'Domain {i+1}'}
+                              for i, arn in enumerate(arns)
+                          ],
+                      },
+                  },
+              },
+              'Outputs': {
+                  'AppArn': {
+                      'Value': {'Fn::GetAtt': ['CrossRegionApp', 'Arn']},
+                      'Export': {'Name': f'fx-{env}-opensearch-cross-region-ui-arn'},
+                  },
+                  'AppEndpoint': {
+                      'Value': {'Fn::GetAtt': ['CrossRegionApp', 'Endpoint']},
+                      'Export': {'Name': f'fx-{env}-opensearch-cross-region-ui-endpoint'},
+                  },
+              },
+          }
+          with open('/tmp/cross-region-ui.yml', 'w') as f:
+              yaml.safe_dump(template, f, sort_keys=False)
+          print('--- Generated /tmp/cross-region-ui.yml ---')
+          with open('/tmp/cross-region-ui.yml') as f:
+              print(f.read())
+          PY
+
+      - name: Skip-if-exists check + auto-recover failed stacks
+        id: precheck
+        run: |
+          set -euo pipefail
+          STATE="create"
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "${{ inputs.home_region }}" >/dev/null 2>&1; then
+            STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "${{ inputs.home_region }}" --query 'Stacks[0].StackStatus' --output text)
+            case "$STATUS" in
+              ROLLBACK_COMPLETE|ROLLBACK_FAILED|CREATE_FAILED|DELETE_FAILED|UPDATE_ROLLBACK_FAILED)
+                echo "::warning::Stack $STACK_NAME is in $STATUS — auto-deleting before re-create."
+                aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "${{ inputs.home_region }}"
+                aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" --region "${{ inputs.home_region }}"
+                STATE="create"
+                ;;
+              CREATE_COMPLETE|UPDATE_COMPLETE|UPDATE_ROLLBACK_COMPLETE)
+                echo "::notice::Stack exists in $STATUS — running idempotent update."
+                STATE="update"
+                ;;
+              *_IN_PROGRESS)
+                echo "::error::Stack $STACK_NAME in transitional state $STATUS — wait for it to finish."
+                exit 1
+                ;;
+              *)
+                echo "::error::Stack $STACK_NAME in unexpected state $STATUS — inspect in AWS Console."
+                exit 1
+                ;;
+            esac
+          fi
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy cross-region UI stack
+        run: |
+          set -euo pipefail
+          aws cloudformation deploy \
+            --stack-name "$STACK_NAME" \
+            --region "${{ inputs.home_region }}" \
+            --template-file /tmp/cross-region-ui.yml \
+            --no-fail-on-empty-changeset \
+            --tags Project=fx-trade-analytics Environment=${{ inputs.environment }} Component=cross-region-ui
+
+      - name: Show stack outputs (UI endpoint)
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "${{ inputs.home_region }}" \
+            --query 'Stacks[0].Outputs' --output table

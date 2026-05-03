@@ -8,12 +8,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatRadioModule } from '@angular/material/radio';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { TradeSearchService, SearchMode } from '../../shared/services/trade-search.service';
-import { OpenSearchDeploymentService } from '../../shared/services/opensearch-deployment.service';
-import { Trade } from '../../shared/models/trade.model';
+import { TradeSearchService, SearchMode, TradeRow } from '../../shared/services/trade-search.service';
+import { RegionConfigService } from '../../shared/services/region-config.service';
 
 @Component({
   selector: 'app-trades-search',
@@ -22,21 +20,19 @@ import { Trade } from '../../shared/models/trade.model';
     CommonModule, DecimalPipe, DatePipe, ReactiveFormsModule,
     MatFormFieldModule, MatInputModule, MatSelectModule, MatRadioModule,
     MatButtonModule, MatIconModule, MatTableModule, MatProgressBarModule,
-    MatTooltipModule, MatSnackBarModule,
+    MatSnackBarModule,
   ],
   template: `
-    <section class="page-card">
-      <header class="page-card__header">
-        <div>
-          <h2 class="page-card__title">Trades Search</h2>
-          <p class="page-card__subtitle">
-            Search trades across one region, several regions (comma-separated),
-            or all configured regions at once. The <strong>Region</strong>
-            column on each result row shows where that trade was indexed.
-          </p>
-        </div>
-      </header>
+    <section class="hero">
+      <div class="hero__eyebrow">Foreign Exchange · Live</div>
+      <h1 class="hero__title">Search Trades</h1>
+      <p class="hero__sub">
+        Look up trades across one region, several regions, or every region we
+        run in — with the source region shown alongside each result.
+      </p>
+    </section>
 
+    <section class="section-card">
       <form [formGroup]="form" (ngSubmit)="run()" class="search-form">
         <div class="mode-row">
           <span class="mode-label">Search across</span>
@@ -52,7 +48,7 @@ import { Trade } from '../../shared/models/trade.model';
             <input matInput formControlName="regionsInput"
                    placeholder="us-east-1, eu-west-2, ap-south-1" />
             <mat-hint>
-              Available: {{ availableRegions().join(', ') || '(no active deployments — Sync first)' }}
+              Available: {{ availableRegions().join(', ') || '(loading from /api/config/regions)' }}
             </mat-hint>
           </mat-form-field>
         }
@@ -82,94 +78,88 @@ import { Trade } from '../../shared/models/trade.model';
 
       @if (loading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
 
-      <div class="page-card__body">
-        @if (!loading() && hasSearched() && hits().length === 0) {
-          <div class="empty">
-            <mat-icon>inbox</mat-icon>
-            <h3>No trades match those filters</h3>
-            <p>Try a different region set or relax the risk filter.</p>
-          </div>
-        }
+      @if (!loading() && hasSearched() && hits().length === 0) {
+        <div class="empty">
+          <mat-icon>inbox</mat-icon>
+          <h3>No trades match those filters</h3>
+          <p>Try a different region or relax the risk filter.</p>
+        </div>
+      }
 
-        @if (hits().length > 0) {
-          <div class="result-meta">
-            <span class="pill pill--info">{{ hits().length }} hits</span>
+      @if (hits().length > 0) {
+        <div class="result-meta">
+          <span class="pill pill--info">{{ hits().length }} hits</span>
+          <span class="result-meta__sep">·</span>
+          <span>Mode <strong>{{ form.value.mode }}</strong></span>
+          @if (form.value.mode === 'specific-regions' && form.value.regionsInput) {
             <span class="result-meta__sep">·</span>
-            <span>Mode <strong>{{ form.value.mode }}</strong></span>
-            @if (form.value.mode === 'specific-regions' && form.value.regionsInput) {
-              <span class="result-meta__sep">·</span>
-              <span>Regions <strong>{{ form.value.regionsInput }}</strong></span>
-            }
-            @if (form.value.risk) {
-              <span class="result-meta__sep">·</span>
-              <span>Risk <strong>{{ form.value.risk }}</strong></span>
-            }
+            <span>Regions <strong>{{ form.value.regionsInput }}</strong></span>
+          }
+          @if (form.value.risk) {
             <span class="result-meta__sep">·</span>
-            <span>Distinct regions in results: <strong>{{ regionsSeenInResults() }}</strong></span>
-          </div>
+            <span>Risk <strong>{{ form.value.risk }}</strong></span>
+          }
+          <span class="result-meta__sep">·</span>
+          <span>Distinct in results: <strong>{{ regionsSeenInResults() }}</strong></span>
+        </div>
 
-          <table mat-table [dataSource]="hits()">
-            <ng-container matColumnDef="region">
-              <th mat-header-cell *matHeaderCellDef>Region</th>
-              <td mat-cell *matCellDef="let t">
-                <span class="code-badge">{{ t.region }}</span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="tradeId">
-              <th mat-header-cell *matHeaderCellDef>Trade ID</th>
-              <td mat-cell *matCellDef="let t" class="mono">{{ shortId(t) }}</td>
-            </ng-container>
-            <ng-container matColumnDef="pair">
-              <th mat-header-cell *matHeaderCellDef>Pair</th>
-              <td mat-cell *matCellDef="let t">
-                <span class="pair-badge">{{ t.fromCurrency }} → {{ t.toCurrency }}</span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="amount">
-              <th mat-header-cell *matHeaderCellDef style="text-align: right">From amount</th>
-              <td mat-cell *matCellDef="let t" style="text-align: right" class="num">
-                {{ t.fromAmount | number:'1.2-2' }}
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="rate">
-              <th mat-header-cell *matHeaderCellDef style="text-align: right">Rate</th>
-              <td mat-cell *matCellDef="let t" style="text-align: right" class="num">
-                {{ t.rate | number:'1.4-4' }}
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="risk">
-              <th mat-header-cell *matHeaderCellDef>Risk</th>
-              <td mat-cell *matCellDef="let t">
-                <span class="pill"
-                      [class.pill--ok]="t.riskLevel === 'LOW'"
-                      [class.pill--info]="t.riskLevel === 'MEDIUM'"
-                      [class.pill--warn]="t.riskLevel === 'HIGH'">
-                  {{ t.riskLevel }}
-                </span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="book">
-              <th mat-header-cell *matHeaderCellDef>Book</th>
-              <td mat-cell *matCellDef="let t" class="mono">{{ t.traderBook }}</td>
-            </ng-container>
-            <ng-container matColumnDef="timestamp">
-              <th mat-header-cell *matHeaderCellDef>Time</th>
-              <td mat-cell *matCellDef="let t" class="cell-time">
-                {{ formatTimestamp(t.timestamp) | date:'medium' }}
-              </td>
-            </ng-container>
+        <table mat-table [dataSource]="hits()">
+          <ng-container matColumnDef="region">
+            <th mat-header-cell *matHeaderCellDef>Region</th>
+            <td mat-cell *matCellDef="let t">
+              <span class="code-badge">{{ t.region }}</span>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="tradeId">
+            <th mat-header-cell *matHeaderCellDef>Trade ID</th>
+            <td mat-cell *matCellDef="let t" class="mono">{{ shortId(t) }}</td>
+          </ng-container>
+          <ng-container matColumnDef="pair">
+            <th mat-header-cell *matHeaderCellDef>Pair</th>
+            <td mat-cell *matCellDef="let t">
+              <span class="pair">{{ t.fromCurrency }} → {{ t.toCurrency }}</span>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="amount">
+            <th mat-header-cell *matHeaderCellDef style="text-align: right">Amount</th>
+            <td mat-cell *matCellDef="let t" style="text-align: right" class="num">
+              {{ t.fromAmount | number:'1.2-2' }}
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="rate">
+            <th mat-header-cell *matHeaderCellDef style="text-align: right">Rate</th>
+            <td mat-cell *matCellDef="let t" style="text-align: right" class="num">
+              {{ t.rate | number:'1.4-4' }}
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="risk">
+            <th mat-header-cell *matHeaderCellDef>Risk</th>
+            <td mat-cell *matCellDef="let t">
+              <span class="pill"
+                    [class.pill--ok]="t.riskLevel === 'LOW'"
+                    [class.pill--info]="t.riskLevel === 'MEDIUM'"
+                    [class.pill--warn]="t.riskLevel === 'HIGH'">
+                {{ t.riskLevel }}
+              </span>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="timestamp">
+            <th mat-header-cell *matHeaderCellDef>Time</th>
+            <td mat-cell *matCellDef="let t" class="cell-time">
+              {{ formatTimestamp(t.timestamp) | date:'medium' }}
+            </td>
+          </ng-container>
 
-            <tr mat-header-row *matHeaderRowDef="displayed"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayed"></tr>
-          </table>
-        }
-      </div>
+          <tr mat-header-row *matHeaderRowDef="displayed"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayed"></tr>
+        </table>
+      }
     </section>
   `,
   styles: [`
+    .section-card { padding: 24px; }
     .search-form {
       display: flex; flex-direction: column; gap: 16px;
-      padding: 16px 24px 8px 24px;
     }
     .mode-row {
       display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
@@ -189,7 +179,7 @@ import { Trade } from '../../shared/models/trade.model';
     .filter-row button { margin-top: 8px; height: 48px; }
     .result-meta {
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      padding: 8px 24px 16px 24px;
+      margin: 16px 0 12px 0;
       font-size: 13px;
       color: var(--text-muted);
     }
@@ -199,20 +189,24 @@ import { Trade } from '../../shared/models/trade.model';
       font-family: 'SF Mono', 'Menlo', monospace;
       font-weight: 700;
       font-size: 12px;
-      color: var(--brand-navy);
+      color: var(--brand-teal);
       background: var(--mat-sys-primary-container);
       padding: 4px 10px;
       border-radius: 6px;
       letter-spacing: 0.04em;
     }
-    .pair-badge {
-      font-family: 'SF Mono', 'Menlo', monospace;
-      font-weight: 700;
-      font-size: 12px;
-    }
+    .pair { font-family: 'SF Mono', 'Menlo', monospace; font-weight: 700; font-size: 13px; }
     .mono { font-family: 'SF Mono', 'Menlo', monospace; font-size: 12px; color: var(--text-muted); }
     .num  { font-family: 'SF Mono', 'Menlo', monospace; font-variant-numeric: tabular-nums; }
     .cell-time { font-size: 12px; color: var(--text-muted); }
+    .pill {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .pill--ok   { background: #ECFDF5; color: #065F46; }
     .pill--info { background: #DBEAFE; color: #1E40AF; }
     .pill--warn { background: #FEF3C7; color: #92400E; }
     .empty {
@@ -230,12 +224,12 @@ import { Trade } from '../../shared/models/trade.model';
 export class TradesSearchComponent implements OnInit {
   private fb = inject(FormBuilder);
   private api = inject(TradeSearchService);
-  private deployments = inject(OpenSearchDeploymentService);
+  private regionConfig = inject(RegionConfigService);
   private snack = inject(MatSnackBar);
 
-  displayed = ['region', 'tradeId', 'pair', 'amount', 'rate', 'risk', 'book', 'timestamp'];
+  displayed = ['region', 'tradeId', 'pair', 'amount', 'rate', 'risk', 'timestamp'];
 
-  hits = signal<Trade[]>([]);
+  hits = signal<TradeRow[]>([]);
   loading = signal(false);
   hasSearched = signal(false);
   availableRegions = signal<string[]>([]);
@@ -259,16 +253,14 @@ export class TradesSearchComponent implements OnInit {
   });
 
   ngOnInit() {
-    this.deployments.list().subscribe({
-      next: deps => {
-        const active = Array.from(new Set(deps.filter(d => d.status === 'ACTIVE').map(d => d.region)));
-        this.availableRegions.set(active);
-        // Pre-fill the specific-regions input with the first one as a hint
-        if (active.length && !this.form.value.regionsInput) {
-          this.form.patchValue({ regionsInput: active.join(', ') });
-        }
-      },
-      error: () => { /* dropdown empty + hint will explain */ },
+    // Region list comes from trade-service /api/config/regions, same source the
+    // Place Trade page already uses for its dropdown.
+    this.regionConfig.load().subscribe(map => {
+      const codes = Object.keys(map);
+      this.availableRegions.set(codes);
+      if (codes.length && !this.form.value.regionsInput) {
+        this.form.patchValue({ regionsInput: codes.join(', ') });
+      }
     });
   }
 
@@ -299,7 +291,7 @@ export class TradesSearchComponent implements OnInit {
     });
   }
 
-  shortId(t: Trade): string {
+  shortId(t: TradeRow): string {
     const id = (t.tradeId ?? t._id ?? '') as string;
     return id ? id.substring(0, 8) + '…' : '—';
   }

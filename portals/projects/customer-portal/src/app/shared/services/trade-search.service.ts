@@ -1,26 +1,38 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Trade } from '../models/trade.model';
 
 export type SearchMode = 'cross-region' | 'specific-regions';
 
 export interface SearchOptions {
   mode: SearchMode;
-  /** Single region (legacy) — only used when mode === 'specific-regions' AND only one region. */
   region?: string;
-  /** Comma-separated list when mode === 'specific-regions' (1+ regions). */
   regions?: string[];
   risk?: string;
   size?: number;
 }
 
+export interface TradeRow {
+  _id?: string;
+  tradeId?: string;
+  traderBook?: string;
+  fromCurrency?: string;
+  toCurrency?: string;
+  fromAmount?: number;
+  toAmount?: number;
+  rate?: number;
+  region?: string;
+  riskLevel?: string;
+  timestamp?: string | number;
+  [key: string]: unknown;
+}
+
 @Injectable({ providedIn: 'root' })
 export class TradeSearchService {
   private http = inject(HttpClient);
-  private base = '/api/trades-search';   // proxied to fx-trade-service /trades/search
+  private base = '/api/trades-search';
 
-  search(opts: SearchOptions): Observable<Trade[]> {
+  search(opts: SearchOptions): Observable<TradeRow[]> {
     let params = new HttpParams();
     if (opts.mode === 'cross-region') {
       params = params.set('crossRegion', 'true');
@@ -31,6 +43,6 @@ export class TradeSearchService {
     }
     if (opts.risk) params = params.set('risk', opts.risk);
     if (opts.size) params = params.set('size', String(opts.size));
-    return this.http.get<Trade[]>(this.base, { params });
+    return this.http.get<TradeRow[]>(this.base, { params });
   }
 }
