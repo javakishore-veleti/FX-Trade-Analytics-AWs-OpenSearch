@@ -19,5 +19,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/opensearch-deployments/opensearch-deployments-list.component')
       .then(m => m.OpenSearchDeploymentsListComponent),
   },
+  {
+    path: 'trades-search',
+    loadComponent: () => import('./features/trades-search/trades-search.component')
+      .then(m => m.TradesSearchComponent),
+  },
   { path: '**', redirectTo: 'currencies' },
 ];

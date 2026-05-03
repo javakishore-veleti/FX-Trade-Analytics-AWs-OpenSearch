@@ -48,6 +48,10 @@ import { MatButtonModule } from '@angular/material/button';
             <mat-icon>cloud</mat-icon>
             <span>OpenSearch (AWS)</span>
           </a>
+          <a class="nav-item" routerLink="/trades-search" routerLinkActive="nav-item--active">
+            <mat-icon>search</mat-icon>
+            <span>Trades Search</span>
+          </a>
         </div>
 
         <div class="sidebar-foot">
