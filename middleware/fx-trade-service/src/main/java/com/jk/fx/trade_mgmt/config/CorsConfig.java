@@ -9,7 +9,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * Allows the customer portal (and admin portal) to call this service cross-origin
- * during local dev when the region map points each region to localhost:8080.
+ * during local dev when the region map points each region to localhost:9080.
  * Override <code>fx.cors.allowed-origins</code> per environment.
  */
 @Configuration

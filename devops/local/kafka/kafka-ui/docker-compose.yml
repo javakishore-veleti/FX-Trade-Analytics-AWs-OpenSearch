@@ -4,7 +4,9 @@ services:
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: fx-kafka-ui
-    # Moved off 8080 to avoid colliding with fx-trade-service.
+    # Host port 8085. Container's internal port stays 8080 — that's what the
+    # provectuslabs/kafka-ui image listens on inside the container, unrelated
+    # to fx-trade-service which now runs on host port 9080.
     ports:
       - "8085:8080"
     environment:

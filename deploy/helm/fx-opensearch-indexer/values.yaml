@@ -11,7 +11,7 @@ replicaCount: 2
 
 service:
   type: ClusterIP
-  port: 8082                  # Actuator only; indexer has no public REST
+  port: 9082                  # Actuator only; indexer has no public REST
 
 springProfiles: []
 
@@ -21,7 +21,7 @@ kafka:
 opensearch:
   source:
     type: masterdata
-    masterdataUrl: http://fx-masterdata-service.fx.svc.cluster.local:8083
+    masterdataUrl: http://fx-masterdata-service.fx.svc.cluster.local:9083
     ttlSeconds: 60
 
 aws:

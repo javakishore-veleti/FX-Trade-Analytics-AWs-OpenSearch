@@ -471,6 +471,6 @@ To keep scope honest:
 **Existing reusable assets in repo:**
 - Mapping: `devops/local/opensearch/mappings/fx-trades-mapping.json`
 - Region-config endpoint: `GET /api/config/regions` on trade-service
-- Master-data allow-list: `fx-masterdata-service` on port 8083
+- Master-data allow-list: `fx-masterdata-service` on port 9083
 - Region-aware customer portal routing
 - GitHub Actions scaffold: `001/002/003/995/996` workflows already exist; add `006-AWS-OpenSearch` next

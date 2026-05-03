@@ -12,7 +12,7 @@ replicaCount: 2
 
 service:
   type: ClusterIP
-  port: 8081                  # Actuator only; risk service has no public REST
+  port: 9081                  # Actuator only; risk service has no public REST
 
 springProfiles: []
 

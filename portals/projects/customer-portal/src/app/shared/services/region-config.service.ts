@@ -15,7 +15,7 @@ export class RegionConfigService {
 
   /**
    * Fetches the region → backend URL map from trade-service. Cached for the
-   * lifetime of the page. The proxy.conf.json forwards /api/config to :8080
+   * lifetime of the page. The proxy.conf.json forwards /api/config to :9080
    * during local dev.
    */
   load(): Observable<RegionEndpoints> {

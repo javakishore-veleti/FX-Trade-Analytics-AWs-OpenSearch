@@ -50,15 +50,15 @@ Preserve this event-driven decoupling. Do **not** collapse services into direct 
 
 - **`middleware/`** — Maven multi-module reactor (parent: `middleware-parent`, packaging `pom`). Java 17, Spring Boot 3.4.6.
   - `fx-common/` — shared `TradeEventDTO` only
-  - `fx-trade-service/` — REST entry point + Kafka producer + OpenSearch search API (port **8080**)
-  - `fx-risk-service/` — Kafka consumer, risk classifier, enriched producer, DLQ (port **8081**)
-  - `fx-opensearch-indexer/` — Kafka consumer → OpenSearch indexing (port **8082**). Routes writes by `trade.region` via the `OpenSearchClientFactory` (in `fx-search-client`).
+  - `fx-trade-service/` — REST entry point + Kafka producer + OpenSearch search API (port **9080**)
+  - `fx-risk-service/` — Kafka consumer, risk classifier, enriched producer, DLQ (port **9081**)
+  - `fx-opensearch-indexer/` — Kafka consumer → OpenSearch indexing (port **9082**). Routes writes by `trade.region` via the `OpenSearchClientFactory` (in `fx-search-client`).
   - `fx-search-client/` — provider-agnostic OpenSearch client factory used by `fx-trade-service` (search path) and `fx-opensearch-indexer` (write path). Returns a region-keyed singleton `OpenSearchClient` from `opensearch-java` 2.10; transport is `ApacheHttpClient5TransportBuilder` for `local`, `AwsSdk2Transport` (SigV4) for `aws`. **Backend resolution is pluggable** via `BackendsSource` (controlled by `fx.opensearch.source.type`):
     - `yaml` (default) — reads the static `fx.opensearch.backends` list from `application.yml` once at startup. Restart to pick up changes. Right for local dev.
     - `masterdata` — calls fx-masterdata-service `GET /api/admin/opensearch-deployments`, filters to `status=ACTIVE && provisionType=managed`, refreshes every `fx.opensearch.source.ttl-seconds` (default 60). Right for AWS, since the admin portal sync flow is now the source of truth. Failures fall back to the last cached snapshot — a transient masterdata outage doesn't kill search/index.
     
     Each `clientFor(region)` call re-resolves the current backend and rebuilds the cached client only if the endpoint changed (so a fresh sync becomes effective without restart). AWS credentials come from `AwsCredentialsProperties` (`fx.aws.access-key/secret-key` → `StaticCredentialsProvider`) when set, else `DefaultCredentialsProvider` chain. The `AwsCredentialsProvider` bean is `@ConditionalOnMissingBean`, so a service that defines its own (e.g. masterdata's `AwsClientsConfig`) wins and shares one provider across both code paths. **Same code path in local dev and ECS — only YAML changes.**
-  - `fx-masterdata-service/` — JPA/REST CRUD for currencies, currency pairs, trade books (port **8083**) **plus** an Administration page that tracks AWS OpenSearch deployments (managed clusters + serverless collections). Layered: `api/` → `service/` (interface) + `service/impl/` → `repository/` (Spring Data JPA) → `entity/`. H2 in-memory by default; `--spring.profiles.active=postgres` switches to `localhost:5432/fxdb`. **Schema and seed are owned by Liquibase** (changelog at `src/main/resources/db/changelog/db.changelog-master.yaml`); Hibernate runs in `validate` mode and never alters DDL. To add a new migration: drop a new YAML file in `db/changelog/changes/` and add an `include` line in the master changelog. OpenAPI/Swagger at `/swagger-ui.html`.
+  - `fx-masterdata-service/` — JPA/REST CRUD for currencies, currency pairs, trade books (port **9083**) **plus** an Administration page that tracks AWS OpenSearch deployments (managed clusters + serverless collections). Layered: `api/` → `service/` (interface) + `service/impl/` → `repository/` (Spring Data JPA) → `entity/`. H2 in-memory by default; `--spring.profiles.active=postgres` switches to `localhost:5432/fxdb`. **Schema and seed are owned by Liquibase** (changelog at `src/main/resources/db/changelog/db.changelog-master.yaml`); Hibernate runs in `validate` mode and never alters DDL. To add a new migration: drop a new YAML file in `db/changelog/changes/` and add an `include` line in the master changelog. OpenAPI/Swagger at `/swagger-ui.html`.
     - **Migration topology profiles** (Postgres only — H2 always runs Liquibase since the in-memory DB lives inside the JVM):
       - `postgres` — datasource + Liquibase + web. Single-pod local dev.
       - `postgres,migrate` — runs Liquibase, then `MigrationRunner` exits the JVM (web disabled). One-shot runner: local `npm run localhost:app:postgres:migrate`, prod K8s pre-upgrade Job.
@@ -77,8 +77,8 @@ Preserve this event-driven decoupling. Do **not** collapse services into direct 
 - **`devops/local/`** — Docker Compose stacks for Kafka, OpenSearch, Postgres, observability, plus orchestration scripts
 - **`fx-admin-ui/`** — legacy minimal static React-via-CDN admin page (kept for reference; superseded by `portals/`)
 - **`portals/`** — Angular 21 workspace with two apps:
-  - `projects/admin-portal/` (port **4200**) — Master Data CRUD (currencies, currency-pairs, trade-books) + **Administration → OpenSearch (AWS)** page (lists tracked deployments, sync button per region + sync-all, click-through to OpenSearch Dashboards and the AWS Console). Proxies `/api/master/*` and `/api/admin/*` → `localhost:8083`.
-  - `projects/customer-portal/` (port **4201**) — Place Trade form (driven by master-data pairs) + Recent Trades view. Proxies `/api/master/*` → `:8083`, `/api/trades` and `/trades` → `:8080`.
+  - `projects/admin-portal/` (port **4200**) — Master Data CRUD (currencies, currency-pairs, trade-books) + **Administration → OpenSearch (AWS)** page (lists tracked deployments, sync button per region + sync-all, click-through to OpenSearch Dashboards and the AWS Console). Proxies `/api/master/*` and `/api/admin/*` → `localhost:9083`.
+  - `projects/customer-portal/` (port **4201**) — Place Trade form (driven by master-data pairs) + Recent Trades view. Proxies `/api/master/*` → `:9083`, `/api/trades` and `/trades` → `:9080`.
   - Standalone components, Angular Material, lazy-loaded routes. First-time setup: `npm run localhost:app:portals:install` from repo root.
 - **`docs/`** — architecture notes, drawio, screenshots
 - Root `pom.xml` declares only `middleware`. Base Java package is `com.jk.fx.trade_mgmt`.
@@ -117,7 +117,7 @@ npm run localhost:app:services:indexer
 npm run localhost:app:services:masterdata       # H2 default
 npm run localhost:app:services:masterdata:postgres   # connects to localhost:5432, expects postgres:up first
 npm run localhost:app:services:all-up           # all four via concurrently
-npm run localhost:app:services:all-down         # kill 8080, 8081, 8082, 8083
+npm run localhost:app:services:all-down         # kill 9080, 9081, 9082, 9083
 npm run localhost:app:services:all-status
 
 # UI portals — auto-opens both browser tabs once ng serve is ready
@@ -166,7 +166,7 @@ Each UI script auto-runs `portals:ensure-install` first (`npm install --prefer-o
 
 - `devops/local/docker-all-up.sh` references a root `docker-compose.yaml` and `postgres/docker-compose.yaml` (relative to repo root). Verify those exist before running, or expect early failures from `set -e`.
 
-Both Angular apps use `proxy.conf.json` to forward `/api/master/*` to master-data (8083) and the customer portal additionally proxies `/api/trades` and `/trades` to trade-service (8080). No CORS config needed in dev.
+Both Angular apps use `proxy.conf.json` to forward `/api/master/*` to master-data (9083) and the customer portal additionally proxies `/api/trades` and `/trades` to trade-service (9080). No CORS config needed in dev.
 
 ---
 
@@ -194,10 +194,10 @@ The customer portal does **not** hardcode the trade-service URL. On startup it f
 fx:
   regions:
     endpoints:
-      us-east-1: http://localhost:8080    # local dev: every region → same instance
-      us-west-2: http://localhost:8080
-      eu-west-1: http://localhost:8080
-      ap-south-1: http://localhost:8080
+      us-east-1: http://localhost:9080    # local dev: every region → same instance
+      us-west-2: http://localhost:9080
+      eu-west-1: http://localhost:9080
+      ap-south-1: http://localhost:9080
   cors:
     allowed-origins:
       - http://localhost:4200
@@ -206,13 +206,13 @@ fx:
 
 In AWS, override per regional deployment. Spring's relaxed binding maps env vars: `FX_REGIONS_ENDPOINTS_US_EAST_1=https://trades.us-east-1.example.com` becomes `fx.regions.endpoints.us-east-1`. Add a region by adding it to the map — no code or UI change needed.
 
-CORS is needed because in dev the customer portal at `:4201` posts cross-origin to trade-service at `:8080`. Allowed origins are configurable via `fx.cors.allowed-origins`.
+CORS is needed because in dev the customer portal at `:4201` posts cross-origin to trade-service at `:9080`. Allowed origins are configurable via `fx.cors.allowed-origins`.
 
 ### Master-data validation in trade-service
 
 `TradeProducer.send(...)` now consults a cached `CurrencyPairAllowList` (populated from `fx-masterdata-service` via `MasterDataClient`) before publishing to `trade-events`. Trades whose `(fromCurrency, toCurrency)` pair isn't in the active allow-list are dropped with a WARN log and `send` returns `false`. Tunables in `application.yml` under `masterdata.*`:
 
-- `base-url` — defaults to `http://localhost:8083`
+- `base-url` — defaults to `http://localhost:9083`
 - `allow-list.fail-open` — defaults to `true` so dev isn't blocked when master-data is down. **Flip to `false` in prod.**
 - `allow-list.refresh-interval-seconds` — lazy refresh cadence (default 300s)
 
@@ -265,19 +265,19 @@ The `optional:` prefix means a missing file is fine; the AWS SDK then falls back
 
 | Service | URL |
 |---|---|
-| Trade API | http://localhost:8080 (`POST /api/trades` legacy demo, `POST /api/trades/place` real, `GET /trades/search` — see search params below, `GET /trades/search/risk` legacy count summary) |
+| Trade API | http://localhost:9080 (`POST /api/trades` legacy demo, `POST /api/trades/place` real, `GET /trades/search` — see search params below, `GET /trades/search/risk` legacy count summary) |
 | Trade Search query params | `region=us-east-1` single (legacy); `regions=us-east-1,eu-west-2` specific multi → app-side fan-out, sort + truncate; `crossRegion=true` → fans out across every backend in `fx.opensearch.backends`. All accept `risk=LOW\|MEDIUM\|HIGH` and `size=N`. Each result hit carries the source `region` so the UI can render "from which region". |
 | Admin Portal | http://localhost:4200 |
 | Customer Portal | http://localhost:4201 |
-| Risk Service | http://localhost:8081 |
-| Indexer | http://localhost:8082 |
-| Master Data | http://localhost:8083 (Swagger: `/swagger-ui.html`, H2 console: `/h2-console`, OpenSearch deployments admin: `GET /api/admin/opensearch-deployments`, `POST .../sync?region=...`, `POST .../sync-all`) |
+| Risk Service | http://localhost:9081 |
+| Indexer | http://localhost:9082 |
+| Master Data | http://localhost:9083 (Swagger: `/swagger-ui.html`, H2 console: `/h2-console`, OpenSearch deployments admin: `GET /api/admin/opensearch-deployments`, `POST .../sync?region=...`, `POST .../sync-all`) |
 | OpenSearch | http://localhost:9200 |
 | OpenSearch Dashboards | http://localhost:5601 |
 | Grafana | http://localhost:3000 |
 | Prometheus | http://localhost:9090 |
 | Kafka (Confluent cp-kafka 7.7, KRaft mode) | host: `localhost:9092` / in-Docker: `kafka:29092` |
-| Kafka UI | http://localhost:8085 (moved off 8080 to free it for trade-service) |
+| Kafka UI | http://localhost:8085 (Spring services use 9080–9083; infra stays on 8xxx) |
 
 Each Spring service exposes Prometheus metrics via Actuator at `/actuator/prometheus`.
 

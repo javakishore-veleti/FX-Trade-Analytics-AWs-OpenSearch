@@ -55,7 +55,7 @@ import { MatButtonModule } from '@angular/material/button';
         </div>
 
         <div class="sidebar-foot">
-          <a mat-stroked-button color="primary" href="http://localhost:8083/swagger-ui.html" target="_blank" class="full-width">
+          <a mat-stroked-button color="primary" href="http://localhost:9083/swagger-ui.html" target="_blank" class="full-width">
             <mat-icon>api</mat-icon> API Reference
           </a>
         </div>

@@ -197,7 +197,7 @@ Cost reminder: each `t3.small.search` domain = ~$50/mo. 3 idle domains = ~$25/mo
 ## ✅ One-line sanity check before going live
 
 ```bash
-npm run localhost:app:all:all-status && curl -sf http://localhost:8083/api/admin/opensearch-deployments | jq 'length'
+npm run localhost:app:all:all-status && curl -sf http://localhost:9083/api/admin/opensearch-deployments | jq 'length'
 ```
 
 Should print all green plus `3` (or however many AWS regions you provisioned).

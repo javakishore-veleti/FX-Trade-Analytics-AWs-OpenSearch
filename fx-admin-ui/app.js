@@ -3,8 +3,8 @@ const { useState } = React;
 function Sidebar({ onSelect }) {
   const endpoints = {
     "Trade Service": [
-      { name: "Create Trade", path: "http://localhost:8080/trades", method: "POST" },
-      { name: "Search by Risk", path: "http://localhost:8080/trades/search/risk", method: "GET" }
+      { name: "Create Trade", path: "http://localhost:9080/trades", method: "POST" },
+      { name: "Search by Risk", path: "http://localhost:9080/trades/search/risk", method: "GET" }
     ]
   };
 

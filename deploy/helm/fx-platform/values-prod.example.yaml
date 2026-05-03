@@ -38,7 +38,7 @@ fx-trade-service:
   opensearch:
     source:
       type: masterdata
-      masterdataUrl: http://fx-fx-masterdata.fx.svc.cluster.local:8083
+      masterdataUrl: http://fx-fx-masterdata.fx.svc.cluster.local:9083
   aws:
     region: us-east-1
   serviceAccount:
@@ -65,7 +65,7 @@ fx-opensearch-indexer:
   opensearch:
     source:
       type: masterdata
-      masterdataUrl: http://fx-fx-masterdata.fx.svc.cluster.local:8083
+      masterdataUrl: http://fx-fx-masterdata.fx.svc.cluster.local:9083
   aws:
     region: us-east-1
   serviceAccount:

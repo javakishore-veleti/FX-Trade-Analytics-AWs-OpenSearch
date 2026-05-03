@@ -1,18 +1,18 @@
 {
   "/api/master": {
-    "target": "http://localhost:8083",
+    "target": "http://localhost:9083",
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug"
   },
   "/api/admin": {
-    "target": "http://localhost:8083",
+    "target": "http://localhost:9083",
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug"
   },
   "/api/trades-search": {
-    "target": "http://localhost:8080",
+    "target": "http://localhost:9080",
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug",
@@ -21,19 +21,19 @@
     }
   },
   "/api/trades": {
-    "target": "http://localhost:8080",
+    "target": "http://localhost:9080",
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug"
   },
   "/api/config": {
-    "target": "http://localhost:8080",
+    "target": "http://localhost:9080",
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug"
   },
   "/trades": {
-    "target": "http://localhost:8080",
+    "target": "http://localhost:9080",
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug"

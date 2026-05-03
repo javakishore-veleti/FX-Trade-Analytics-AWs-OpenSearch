@@ -45,7 +45,7 @@ replicaCount: 2
 
 service:
   type: ClusterIP
-  port: 8083
+  port: 9083
   # If exposing externally via an Ingress, configure it separately or extend
   # this chart with a templates/ingress.yaml — kept minimal here.
 

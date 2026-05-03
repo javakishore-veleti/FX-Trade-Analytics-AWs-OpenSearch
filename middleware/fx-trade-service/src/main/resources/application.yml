@@ -15,7 +15,7 @@ spring:
       # Using JsonSerializer here would double-encode (string -> "\"...\"") and break consumers.
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 server:
-  port: 8080
+  port: 9080
 
 management:
   endpoints:
@@ -31,7 +31,7 @@ app:
     topic: trade-events
 
 masterdata:
-  base-url: http://localhost:8083
+  base-url: http://localhost:9083
   allow-list:
     # When true, allow trades through if the master-data service is unreachable.
     # Flip to false in prod once masterdata is a hard dependency.
@@ -50,10 +50,10 @@ masterdata:
 fx:
   regions:
     endpoints:
-      us-east-1: http://localhost:8080
-      us-west-2: http://localhost:8080
-      eu-west-1: http://localhost:8080
-      ap-south-1: http://localhost:8080
+      us-east-1: http://localhost:9080
+      us-west-2: http://localhost:9080
+      eu-west-1: http://localhost:9080
+      ap-south-1: http://localhost:9080
   cors:
     allowed-origins:
       - http://localhost:4200
@@ -70,7 +70,7 @@ fx:
     # In AWS, set type: masterdata so the admin sync flow drives runtime backends.
     source:
       type: yaml
-      masterdata-url: http://localhost:8083
+      masterdata-url: http://localhost:9083
       ttl-seconds: 60
     backends:
       - region: us-east-1

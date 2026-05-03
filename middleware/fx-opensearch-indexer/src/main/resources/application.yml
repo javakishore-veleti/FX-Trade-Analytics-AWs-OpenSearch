@@ -18,7 +18,7 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 server:
-  port: 8082
+  port: 9082
 
 management:
   endpoints:
@@ -47,7 +47,7 @@ fx:
     #                and write to every ACTIVE managed domain. Refreshed every ttl-seconds.
     source:
       type: yaml
-      masterdata-url: http://localhost:8083
+      masterdata-url: http://localhost:9083
       ttl-seconds: 60
     backends:
       - region: us-east-1

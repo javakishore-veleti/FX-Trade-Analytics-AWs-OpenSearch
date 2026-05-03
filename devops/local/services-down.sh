@@ -15,8 +15,8 @@ kill_port() {
 }
 
 echo "🛑 Stopping microservices..."
-kill_port 8080 "Trade Service"
-kill_port 8081 "Risk Service"
-kill_port 8082 "Indexer Service"
-kill_port 8083 "Master Data Service"
+kill_port 9080 "Trade Service"
+kill_port 9081 "Risk Service"
+kill_port 9082 "Indexer Service"
+kill_port 9083 "Master Data Service"
 echo "✅ Done."

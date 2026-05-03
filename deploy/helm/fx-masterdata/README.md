@@ -22,7 +22,7 @@ deploy/helm/fx-masterdata/
     ├── _helpers.tpl                naming + labels
     ├── deployment.yaml             N service pods (no-migrate profile)
     ├── migration-job.yaml          pre-install/pre-upgrade hook (migrate profile)
-    ├── service.yaml                ClusterIP on 8083
+    ├── service.yaml                ClusterIP on 9083
     └── serviceaccount.yaml         IRSA-ready
 ```
 

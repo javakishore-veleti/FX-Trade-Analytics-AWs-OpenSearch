@@ -25,9 +25,9 @@ kill_port() {
 
 echo ""
 echo "🧠 Stopping Microservices..."
-kill_port 8080 "Trade Service"
-kill_port 8081 "Risk Service"
-kill_port 8082 "Indexer Service"
+kill_port 9080 "Trade Service"
+kill_port 9081 "Risk Service"
+kill_port 9082 "Indexer Service"
 
 echo ""
 echo "🖥️ Stopping UI..."

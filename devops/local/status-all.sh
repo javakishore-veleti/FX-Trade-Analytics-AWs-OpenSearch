@@ -40,10 +40,10 @@ check_port() {
 
 echo ""
 echo "🧠 Microservices:"
-check_port 8080 "Trade Service"
-check_port 8081 "Risk Service"
-check_port 8082 "Indexer Service"
-check_port 8083 "Master Data Service"
+check_port 9080 "Trade Service"
+check_port 9081 "Risk Service"
+check_port 9082 "Indexer Service"
+check_port 9083 "Master Data Service"
 
 echo ""
 echo "🖥️ UI Apps:"

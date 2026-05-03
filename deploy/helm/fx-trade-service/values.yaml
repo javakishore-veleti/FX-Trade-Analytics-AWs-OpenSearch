@@ -9,7 +9,7 @@ replicaCount: 2
 
 service:
   type: ClusterIP
-  port: 8080
+  port: 9080
 
 springProfiles: []            # appended to --spring.profiles.active. Defaults to none (uses default profile).
 
@@ -23,7 +23,7 @@ kafka:
 opensearch:
   source:
     type: masterdata
-    masterdataUrl: http://fx-masterdata-service.fx.svc.cluster.local:8083
+    masterdataUrl: http://fx-masterdata-service.fx.svc.cluster.local:9083
     ttlSeconds: 60
 
 aws:

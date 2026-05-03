@@ -259,9 +259,9 @@ Detailed install + auth + migration-pattern doc: [`deploy/helm/README.md`](deplo
 
 | Service | URL |
 |--------|-----|
-| Trade API | http://localhost:8080 |
-| Risk Service | http://localhost:8081 |
-| Indexer | http://localhost:8082 |
+| Trade API | http://localhost:9080 |
+| Risk Service | http://localhost:9081 |
+| Indexer | http://localhost:9082 |
 | OpenSearch | http://localhost:9200 |
 | Dashboards | http://localhost:5601 |
 | Grafana | http://localhost:3000 |
