@@ -36,6 +36,7 @@
 - [🛠️ AWS OpenSearch Implementation Plan](#️-aws-opensearch-implementation-plan)
   - [Goal](#goal)
   - [Prerequisites — AWS Management Console setup](#prerequisites--aws-management-console-setup-before-running-anything)
+  - [Next steps — what to do after IAM setup](#next-steps--what-to-do-after-iam-setup)
   - [Deployment modes](#deployment-modes)
   - [Provider abstraction (factory pattern)](#provider-abstraction-factory-pattern)
   - [Pagination strategy](#pagination-strategy)
@@ -413,6 +414,100 @@ unset FX_TRADE_ANALYTICS_AWS_ACCESS_KEY FX_TRADE_ANALYTICS_AWS_SECRET
 You're ready. Every workflow under `.github/workflows/` can now run.
 
 > 📖 Detailed walkthrough + troubleshooting in [`.github/aws/configs/README.md`](.github/aws/configs/README.md). Common terminology pitfalls (Roles vs Users, trust policy errors) covered there.
+
+## Next steps — what to do after IAM setup
+
+You now have repo secrets `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` backed by a deployer IAM user. Here's the recommended order to validate everything works and get to a running multi-region demo.
+
+### Step 8 · Smoke-test in one region first
+
+Don't run `995-AWS-All-Setup` straight away — it provisions everything across 7 regions; any auth issue would waste 15+ minutes. Start small:
+
+1. **Actions** tab → click **`004-AWS-Setup-Region-OpenSearch`** → **Run workflow** (top-right)
+2. Inputs:
+   - `regions = us-east-1`
+   - `environment = dev`
+3. Click **Run workflow**
+
+Expected: ~15 minutes for the OpenSearch domain to provision. Watch the workflow logs for green checkmarks. If you see auth errors, your repo secrets are wrong — re-check step 6.
+
+### Step 9 · Verify in the AWS Console
+
+- Switch to **us-east-1** (region selector, top-right of the AWS Console).
+- Open **OpenSearch Service** → **Domains** in the left sidebar.
+- You should see a domain named **`fxs-dev-us-east-1`** in `Active` state.
+- Click into it → the **Domain endpoint** shown here is what the application will eventually connect to. Save the URL — you'll need it in step 11.
+
+### Step 10 · Provision the rest of the regions
+
+Once step 8 was clean:
+
+- **Add more regions one at a time:** re-run `004-AWS-Setup-Region-OpenSearch` with e.g. `regions=eu-west-2,ap-south-1`.
+- **All 7 at once (Balanced demo set):** `regions=all`.
+- **Full chain** (`995-AWS-All-Setup` with `regions=all`) — this also provisions VPCs, IAM roles, and ECR repos. You only need this when you're ready to deploy services to ECS later. For the pure local-app + AWS-OpenSearch demo, you can skip it.
+
+> 💰 **Cost reminder:** ~$50/mo per OpenSearch domain on `t3.small.search`. 7 regions ≈ $350/mo running, ~$70/mo idle. Pause domains between work sessions to save (AWS Console → Domain → Actions → Pause).
+
+### Step 11 · Run the local app writing to AWS OpenSearch
+
+> ⏳ **Pending:** This requires Phase 2 (`fx-search-client` Maven module) to be built first. Until then, the application writes only to localhost OpenSearch (the existing dev flow under [Daily Developer Workflow](#-daily-developer-workflow-recommended)).
+
+When Phase 2 lands, the steps will be:
+
+1. **Get each AWS OpenSearch domain endpoint.** From the AWS Console (step 9) or via CLI:
+   ```bash
+   aws cloudformation describe-stacks --region us-east-1 \
+     --stack-name fx-dev-opensearch-us-east-1 \
+     --query 'Stacks[0].Outputs[?OutputKey==`DomainEndpoint`].OutputValue' --output text
+   ```
+2. **Drop them into `application.yml`** for `fx-trade-service` and `fx-opensearch-indexer`:
+   ```yaml
+   fx.opensearch.backends:
+     - region: us-east-1
+       provider: aws
+       endpoint: https://fxs-dev-us-east-1-XXXXXX.us-east-1.es.amazonaws.com
+     - region: eu-west-2
+       provider: aws
+       endpoint: https://fxs-dev-eu-west-2-YYYYYY.eu-west-2.es.amazonaws.com
+   ```
+3. **Make sure your local `~/.aws/credentials` profile** can reach those domains (the indexer SigV4-signs requests with that profile). The `fx-trade-opensearch-github-deployer` user from the IAM bootstrap is fine — just configure a profile with its keys:
+   ```bash
+   aws configure --profile fx-trade-opensearch
+   # Access Key ID:     <AWS_ACCESS_KEY_ID from step 6>
+   # Secret Access Key: <AWS_SECRET_ACCESS_KEY from step 6>
+   # Region:            us-east-1
+   export AWS_PROFILE=fx-trade-opensearch
+   ```
+4. **Start the local stack** as today:
+   ```bash
+   npm run local:docker:up        # Kafka + local Postgres
+   npm run local:app:run-all      # 4 Spring services — now writing to AWS OpenSearch by region
+   npm run local:ui:run-all       # admin + customer portals
+   ```
+5. **Place a trade** in the customer portal — the trade flows through Kafka, the risk service classifies it, the indexer SigV4-signs the write to the AWS OpenSearch domain that matches the trade's `region` field.
+6. **Verify** the doc landed in AWS:
+   ```bash
+   curl -X GET "https://<your-domain-endpoint>/fx-trades-us-east-1/_search" \
+     --aws-sigv4 "aws:amz:us-east-1:es" \
+     --user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY"
+   ```
+
+### What comes after that
+
+The full implementation roadmap (11 phases, ~70 tasks) lives in [`README_OpenSearch_Core_Impl_DevPlan.md`](README_OpenSearch_Core_Impl_DevPlan.md). Key upcoming phases:
+
+| Phase | Adds | Why you'd want it |
+|---|---|---|
+| **Phase 2** | `fx-search-client` factory module | Unlocks step 11 above |
+| **Phase 3** | Indexer multi-region routing            | Per-region writes work end-to-end |
+| **Phase 4** | Trade-service search API refactor       | Search by region from the app |
+| **Phase 5** | Customer entity + region binding        | Customers tied to a home region |
+| **Phase 6** | Admin portal Trades Search view         | In-portal multi-region search UI |
+| **Phase 8** | AWS OpenSearch UI app cross-region setup | The headline demo — single UI federating across regions |
+
+The architectural reasoning behind each decision is in the **Reference** sections below (Deployment modes, Provider abstraction, Pagination strategy, Open design decisions) and the design doc [`docs/design/AWS-OpenSearch-Cross-Region-Use-Cases.md`](docs/design/AWS-OpenSearch-Cross-Region-Use-Cases.md).
+
+---
 
 ## Deployment modes
 
