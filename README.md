@@ -10,13 +10,16 @@
 
 ## 📑 Table of Contents
 
+- [🚦 Quickstart — pick your path](#-quickstart--pick-your-path)
 - [🎥 Demo (System in Action)](#-demo-system-in-action)
 - [📸 Screenshots](#-screenshots)
 - [🧠 Architecture Diagram (Editable)](#-architecture-diagram-editable)
 - [🌍 Core Idea](#-core-idea-what-makes-this-project-special)
-- [🎬 System Overview](#-system-overview)
+- [🎬 System Overview](#-system-overview) (with what each portal page does)
 - [🔁 Daily Developer Workflow](#-daily-developer-workflow-recommended)
 - [🎯 One Command Mode](#-one-command-mode)
+- [🐘 Postgres mode (opt-in)](#-postgres-mode-opt-in--h2-stays-the-default)
+- [☁️ Production Deployment (EKS)](#-production-deployment-eks)
 - [🌐 Access URLs](#-access-urls)
 - [🧭 OpenSearch Use Cases You Can Build on This Codebase](#-opensearch-use-cases-you-can-build-on-this-codebase)
   - [Region-Local Use Cases (single OpenSearch domain)](#region-local-use-cases-single-opensearch-domain)
@@ -43,6 +46,20 @@
   - [GitHub Actions workflows for AWS provisioning](#github-actions-workflows-for-aws-provisioning)
   - [Open design decisions](#open-design-decisions)
   - [Companion document](#companion-document)
+
+---
+
+# 🚦 Quickstart — pick your path
+
+| You want to … | Start here |
+|---|---|
+| **Run the demo** (cross-region OpenSearch UI federating queries across regions) | [`docs/demo-flow.md`](docs/demo-flow.md) — pre-flight (~30 min one-time) + on-stage script |
+| **Run locally with H2 + Docker** (zero cloud) | [Daily Developer Workflow](#-daily-developer-workflow-recommended) — 2 npm commands |
+| **Provision AWS resources** (OpenSearch domains, VPC, IAM, ECR) | [AWS OpenSearch Implementation Plan](#-aws-opensearch-implementation-plan) — IAM bootstrap → GitHub Actions Run-workflow buttons |
+| **Deploy to EKS** (production) | [`deploy/helm/README.md`](deploy/helm/README.md) — umbrella Helm chart |
+| **Understand the codebase** | [`CLAUDE.md`](CLAUDE.md) — architecture + service-by-service tour |
+
+**Operating model:** every action that affects AWS is done either through a **GitHub Actions "Run workflow" button** or the **admin portal UI**. No `aws` CLI, no `gh` CLI, no AWS Console clicks. Local dev uses `npm run localhost:app:*` scripts.
 
 ---
 
@@ -140,11 +157,33 @@ flowchart LR
     OS --> UI
 ```
 
+## What you actually see in each portal
+
+**Customer portal** (`http://localhost:4201`)
+- **Place Trade** — pick a currency pair, amount, region; trade flows through Kafka → Risk → indexer → OpenSearch
+- **Generate demo trades** (button at top) — fires N random trades cycling through every region (1–500). Saves click-fatigue when populating multi-region domains for the demo
+- **Recent Trades** — last N trades from the indexed data
+- **Search Trades** — multi-region search with mode toggle: **Cross-region (all)** or **Specific regions** (comma-separated). Each result shows its source region
+
+**Admin portal** (`http://localhost:4200`)
+- **Master Data → Currencies / Currency Pairs / Trade Books** — JPA-backed CRUD
+- **Administration → OpenSearch (AWS)** — discovers AWS-side OpenSearch domains via the control-plane APIs, displays them with click-through links to AWS Console + OpenSearch Dashboards. **Sync All** refreshes from AWS. Per-row **Install Dashboards** button POSTs the NDJSON templates from `fx-masterdata-service/src/main/resources/dashboards/` into that region's domain
+- **Administration → Trades Search** — same multi-region search as the customer portal, scoped to admin operators
+
 ---
 
 # 🔁 Daily Developer Workflow (Recommended)
 
 All scripts follow the pattern `localhost:app:<category>:<action>`.
+
+> 💡 **First-time-only:** if you want the local services to talk to AWS OpenSearch (for the masterdata-driven backend resolution + admin sync feature), generate the local secrets file once. Skip if you're running fully against the local Docker OpenSearch.
+>
+> ```bash
+> # Set deployer keys from the IAM bootstrap (see AWS Implementation Plan below):
+> export FX_DEPLOYER_AWS_ACCESS_KEY_ID=<deployer key>
+> export FX_DEPLOYER_AWS_SECRET_ACCESS_KEY=<deployer secret>
+> npm run localhost:app:secrets:generate
+> ```
 
 ## 🟢 Step 1 — Start Infra (Kafka, OpenSearch, Kafka UI)
 
@@ -182,7 +221,37 @@ npm run localhost:app:postgres:run-all     # starts container, waits, runs Liqui
 npm run localhost:app:postgres:down        # tear down (drops volume)
 ```
 
-The `postgres:run-all` flow uses the production-shape pattern: a one-shot migration runner (`postgres,migrate` profile, exits on completion) followed by service pods running with Liquibase disabled (`postgres,no-migrate`). This is the same shape as the future EKS deployment (Helm pre-upgrade Job + Deployment).
+The `postgres:run-all` flow uses the production-shape pattern: a one-shot migration runner (`postgres,migrate` profile, exits on completion) followed by service pods running with Liquibase disabled (`postgres,no-migrate`). This is the **same shape** as the EKS deployment — see [Production Deployment](#-production-deployment-eks) below.
+
+---
+
+# ☁️ Production Deployment (EKS)
+
+For real EKS deployment, the platform ships with Helm charts at `deploy/helm/`:
+
+```
+deploy/helm/
+├── fx-masterdata/            CRUD + AWS deploy admin + pre-upgrade Liquibase Job
+├── fx-trade-service/         REST + Kafka producer + multi-region search
+├── fx-risk-service/          Kafka consumer worker
+├── fx-opensearch-indexer/    Kafka consumer → SigV4 OpenSearch writes
+└── fx-platform/              Umbrella chart depending on all four above
+```
+
+```bash
+# One command to bring up the entire platform:
+helm dependency update ./deploy/helm/fx-platform
+helm upgrade --install fx ./deploy/helm/fx-platform \
+  -f deploy/helm/fx-platform/values-prod.example.yaml \
+  --namespace fx --create-namespace
+```
+
+Key features:
+- **Pre-upgrade Liquibase Job** — masterdata schema migrations run ONCE before service pods roll. Service pods then boot with `spring.liquibase.enabled: false` (no `DATABASECHANGELOGLOCK` contention across N pods).
+- **IRSA-ready** — set `serviceAccount.annotations.eks\.amazonaws\.com/role-arn` per chart; pods authenticate to AWS via projected SA tokens. Static-key fallback supported via `aws.credentialsSecretName`.
+- **Standalone or umbrella** — install individual service charts independently or use the umbrella for one-shot platform deploy.
+
+Detailed install + auth + migration-pattern doc: [`deploy/helm/README.md`](deploy/helm/README.md).
 
 ---
 
