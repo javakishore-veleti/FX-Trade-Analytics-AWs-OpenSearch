@@ -1,5 +1,0 @@
-com/jk/fx/trade_mgmt/kafka/TradeRiskConsumer.class
-com/jk/fx/trade_mgmt/service/RiskCalculator.class
-com/jk/fx/trade_mgmt/kafka/DLQConsumer.class
-com/jk/fx/trade_mgmt/config/KafkaErrorConfig.class
-com/jk/fx/trade_mgmt/RiskServiceApplication.class

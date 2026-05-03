@@ -1,6 +1,0 @@
-/Users/vavkkishore/kishore/runtime_data/temp_gh_repos/AWS_News_Projects/2026/FX-Trade-Analytics-AWs-OpenSearch/middleware/fx-opensearch-indexer/src/main/java/com/jk/fx/trade_mgmt/IndexerApplication.java
-/Users/vavkkishore/kishore/runtime_data/temp_gh_repos/AWS_News_Projects/2026/FX-Trade-Analytics-AWs-OpenSearch/middleware/fx-opensearch-indexer/src/main/java/com/jk/fx/trade_mgmt/config/KafkaErrorConfig.java
-/Users/vavkkishore/kishore/runtime_data/temp_gh_repos/AWS_News_Projects/2026/FX-Trade-Analytics-AWs-OpenSearch/middleware/fx-opensearch-indexer/src/main/java/com/jk/fx/trade_mgmt/config/OpenSearchConfig.java
-/Users/vavkkishore/kishore/runtime_data/temp_gh_repos/AWS_News_Projects/2026/FX-Trade-Analytics-AWs-OpenSearch/middleware/fx-opensearch-indexer/src/main/java/com/jk/fx/trade_mgmt/kafka/DLQConsumer.java
-/Users/vavkkishore/kishore/runtime_data/temp_gh_repos/AWS_News_Projects/2026/FX-Trade-Analytics-AWs-OpenSearch/middleware/fx-opensearch-indexer/src/main/java/com/jk/fx/trade_mgmt/kafka/TradeIndexerConsumer.java
-/Users/vavkkishore/kishore/runtime_data/temp_gh_repos/AWS_News_Projects/2026/FX-Trade-Analytics-AWs-OpenSearch/middleware/fx-opensearch-indexer/src/main/java/com/jk/fx/trade_mgmt/service/OpenSearchService.java
