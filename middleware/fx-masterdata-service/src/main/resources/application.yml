@@ -20,16 +20,15 @@ spring:
     password:
 
   # Liquibase owns the schema and seed data — Hibernate just maps to it.
-  # Lock-wait shortened so a stale DATABASECHANGELOGLOCK row (from a pod
-  # OOM-killed mid-migration) fails the boot in 5 minutes instead of hanging
-  # forever — Kubernetes can then restart the pod and an operator can
-  # `liquibase releaseLocks` if needed. Poll rate of 5s keeps the wait
-  # responsive without flooding the DB.
+  # NOTE: lock-wait + poll-rate tuning (for prod multi-pod EKS) is NOT done
+  # here — Spring Boot's LiquibaseProperties has ignoreUnknownFields=false
+  # and does not expose those keys. To configure them, define a SpringLiquibase
+  # @Bean programmatically in a @Configuration class:
+  #   bean.setChangeLogLockWaitTime(5);    // minutes
+  #   bean.setChangeLogLockPollRate(5);    // seconds
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     enabled: true
-    change-log-lock-wait-time-minutes: 5
-    change-log-lock-poll-rate: 5
 
   jpa:
     hibernate:
