@@ -1,0 +1,188 @@
+name: 994-AWS-Cost-Check-OpenSearch
+
+# Sweeps every selected AWS region for leftover OpenSearch resources that
+# would still be billing. Fails (red ❌ run) if anything is found, passes
+# (green ✅ run) if every region is clean.
+#
+# Run this BEFORE leaving the demo for the day, AFTER you've clicked
+# 004-AWS-Destroy-Region-OpenSearch — the workflow's idempotent-skip
+# behaviour means a successful destroy doesn't always confirm everything
+# is actually gone (rollback states, half-deleted resources, manual
+# Console deletes). This workflow is the source of truth.
+#
+# Cost references (AWS us-east-1 list price, mid-2026):
+#   - OpenSearch domain on t3.small.search   ≈ $50  / month
+#   - OpenSearch Serverless collection (OCU) ≈ $700 / month  (!!)
+#
+# Default = all 8 demo regions, since the whole point is "did I forget
+# anywhere". Override regions if you only want to check a subset.
+
+on:
+  workflow_dispatch:
+    inputs:
+      regions:
+        description: 'Comma-separated AWS regions to check. Available: us-east-1, us-west-2, sa-east-1, eu-west-2, eu-central-1, ap-south-1, ap-southeast-1, ap-northeast-1. Default = all (recommended for cost checks).'
+        required: true
+        default: 'all'
+      select_all_regions:
+        description: 'Check to scan all 8 demo regions explicitly. Same as setting regions to all.'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  parse-regions:
+    runs-on: ubuntu-latest
+    outputs:
+      regions_json: ${{ steps.parse.outputs.regions_json }}
+    steps:
+      - id: parse
+        run: |
+          set -euo pipefail
+          ALL='us-east-1,us-west-2,sa-east-1,eu-west-2,eu-central-1,ap-south-1,ap-southeast-1,ap-northeast-1'
+          if [ "${{ inputs.select_all_regions }}" = "true" ]; then
+            INPUT="$ALL"
+            echo "::notice::select_all_regions is checked — scanning every demo region."
+          elif [ "${{ inputs.regions }}" = "all" ]; then
+            INPUT="$ALL"
+          else
+            INPUT='${{ inputs.regions }}'
+          fi
+          ARR=$(echo "$INPUT" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep . | jq -R . | jq -sc .)
+          echo "Checking regions: $ARR"
+          echo "regions_json=$ARR" >> "$GITHUB_OUTPUT"
+
+  check-region:
+    needs: parse-regions
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        region: ${{ fromJson(needs.parse-regions.outputs.regions_json) }}
+    steps:
+      - name: Configure AWS credentials for ${{ matrix.region }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ matrix.region }}
+
+      - name: List OpenSearch domains
+        id: domains
+        run: |
+          set -euo pipefail
+          DOMAINS=$(aws opensearch list-domain-names \
+            --region "${{ matrix.region }}" \
+            --query 'DomainNames[*].DomainName' --output text 2>/dev/null || echo "")
+          if [ -z "$DOMAINS" ]; then
+            echo "::notice::${{ matrix.region }}: ✅ no OpenSearch domains"
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            echo "names=" >> "$GITHUB_OUTPUT"
+          else
+            COUNT=$(echo "$DOMAINS" | wc -w | tr -d ' ')
+            echo "::warning::${{ matrix.region }}: ⚠ $COUNT OpenSearch domain(s) still alive: $DOMAINS"
+            echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+            echo "names=$DOMAINS" >> "$GITHUB_OUTPUT"
+            echo "Per-domain details:"
+            for D in $DOMAINS; do
+              aws opensearch describe-domain \
+                --region "${{ matrix.region }}" \
+                --domain-name "$D" \
+                --query 'DomainStatus.{Domain:DomainName,Instance:ClusterConfig.InstanceType,Nodes:ClusterConfig.InstanceCount,EBSGiB:EBSOptions.VolumeSize,Created:Created,Endpoint:Endpoint}' \
+                --output table 2>/dev/null || echo "(could not describe $D)"
+            done
+          fi
+
+      - name: List OpenSearch Serverless collections
+        id: serverless
+        run: |
+          set -euo pipefail
+          # Not every region supports serverless; tolerate API errors.
+          COLS=$(aws opensearchserverless list-collections \
+            --region "${{ matrix.region }}" \
+            --query 'collectionSummaries[*].name' --output text 2>/dev/null || echo "")
+          if [ -z "$COLS" ]; then
+            echo "::notice::${{ matrix.region }}: ✅ no Serverless collections"
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            echo "names=" >> "$GITHUB_OUTPUT"
+          else
+            COUNT=$(echo "$COLS" | wc -w | tr -d ' ')
+            echo "::warning::${{ matrix.region }}: ⚠ $COUNT Serverless collection(s) still alive: $COLS — these are MUCH more expensive than domains (~\$700/mo each)"
+            echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+            echo "names=$COLS" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: List FX-managed CFN stacks (informational only)
+        run: |
+          set -euo pipefail
+          # CFN stacks themselves don't bill, but a stuck stack indicates
+          # something didn't tear down cleanly — worth flagging.
+          STACKS=$(aws cloudformation list-stacks \
+            --region "${{ matrix.region }}" \
+            --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE UPDATE_ROLLBACK_COMPLETE CREATE_FAILED DELETE_FAILED \
+            --query 'StackSummaries[?starts_with(StackName, `fx-`) || starts_with(StackName, `fxs-`)].[StackName,StackStatus]' \
+            --output text 2>/dev/null || echo "")
+          if [ -z "$STACKS" ]; then
+            echo "::notice::${{ matrix.region }}: ✅ no FX-managed CFN stacks"
+          else
+            echo "::warning::${{ matrix.region }}: FX CFN stacks present:"
+            echo "$STACKS"
+          fi
+
+      - name: Region verdict
+        run: |
+          DC=${{ steps.domains.outputs.count }}
+          SC=${{ steps.serverless.outputs.count }}
+          TOTAL=$((DC + SC))
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "::notice::${{ matrix.region }}: ✅ CLEAN — no billable OpenSearch resources"
+          else
+            echo "::error::${{ matrix.region }}: ❌ $DC domain(s) + $SC collection(s) STILL BILLING. Run 004-AWS-Destroy-Region-OpenSearch for this region."
+            exit 1
+          fi
+
+  summary:
+    needs: [parse-regions, check-region]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Final cost-check summary
+        run: |
+          set -euo pipefail
+          if [ "${{ needs.check-region.result }}" = "success" ]; then
+            {
+              echo "# ✅ COST CHECK PASSED"
+              echo ""
+              echo "**No leftover OpenSearch resources found in any checked region.** You're safe to walk away — nothing is billing."
+              echo ""
+              echo "Regions scanned: \`${{ needs.parse-regions.outputs.regions_json }}\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ All clean."
+          else
+            {
+              echo "# ❌ COST CHECK FAILED — RESOURCES STILL BILLING"
+              echo ""
+              echo "One or more regions still have OpenSearch domains or serverless collections."
+              echo "Scroll up to the per-region jobs above; any with a red ❌ shows what's still alive plus per-domain details."
+              echo ""
+              echo "## To fix"
+              echo "1. Note the region(s) flagged above"
+              echo "2. Run **\`004-AWS-Destroy-Region-OpenSearch\`** with \`regions=<comma-list>\` (or check \`select_all_regions\` if many) and \`confirm=DESTROY\`"
+              echo "3. Wait ~5 min per region for delete to complete"
+              echo "4. Re-run this cost-check workflow to verify"
+              echo ""
+              echo "## 💰 Why this matters"
+              echo ""
+              echo "| Resource | Approx \$/month (us-east-1 list) |"
+              echo "|---|---|"
+              echo "| OpenSearch domain on t3.small.search | ~\$50 |"
+              echo "| OpenSearch Serverless collection (1 OCU) | **~\$700** |"
+              echo ""
+              echo "Forgetting one serverless collection across a weekend ≈ \$50 lost. Forgetting it for a month ≈ \$700."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "❌ Resources still alive. See summary above."
+            exit 1
+          fi
