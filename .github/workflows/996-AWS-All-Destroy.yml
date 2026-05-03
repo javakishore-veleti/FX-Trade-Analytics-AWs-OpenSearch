@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       regions:
-        description: 'Comma-separated AWS regions for VPC + OpenSearch destroy (e.g. us-east-1,eu-west-2). Ignored when "select_all_regions" is checked.'
+        description: 'Comma-separated AWS regions for VPC + OpenSearch destroy. Available: us-east-1 (N.Virginia), us-west-2 (Oregon), sa-east-1 (São Paulo), eu-west-2 (London), eu-central-1 (Frankfurt), ap-south-1 (Mumbai), ap-southeast-1 (Singapore), ap-northeast-1 (Tokyo). Ignored when "select_all_regions" is checked.'
         required: true
         default: 'us-east-1'
       select_all_regions:
