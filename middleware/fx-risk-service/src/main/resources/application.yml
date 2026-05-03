@@ -3,10 +3,14 @@ spring:
   kafka:
     bootstrap-servers: localhost:9092
     producer:
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # Code manually JSON-encodes; using JsonSerializer here would double-encode the string payload.
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
     consumer:
       group-id: risk-group
       auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 server:
   port: 8081
 

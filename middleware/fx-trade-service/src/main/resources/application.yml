@@ -3,7 +3,10 @@ spring:
   kafka:
     bootstrap-servers: localhost:9092
     producer:
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # Code in TradeProducer manually JSON-encodes via Jackson, so the wire format is plain UTF-8 string.
+      # Using JsonSerializer here would double-encode (string -> "\"...\"") and break consumers.
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 server:
   port: 8080
 
@@ -27,3 +30,24 @@ masterdata:
     # Flip to false in prod once masterdata is a hard dependency.
     fail-open: true
     refresh-interval-seconds: 300
+
+# Region → backend URL map. The customer portal fetches this from
+# GET /api/config/regions and posts each trade to the URL for the
+# selected region. In local dev every region resolves to this same
+# trade-service. In AWS, override per regional deployment, e.g.:
+#
+#   FX_REGIONS_ENDPOINTS_US_EAST_1=https://trades.us-east-1.example.com
+#
+# The dropdown in the customer portal is built from this map's keys,
+# so adding a region here makes it appear in the UI.
+fx:
+  regions:
+    endpoints:
+      us-east-1: http://localhost:8080
+      us-west-2: http://localhost:8080
+      eu-west-1: http://localhost:8080
+      ap-south-1: http://localhost:8080
+  cors:
+    allowed-origins:
+      - http://localhost:4200
+      - http://localhost:4201

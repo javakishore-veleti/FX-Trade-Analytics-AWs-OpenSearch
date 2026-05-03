@@ -1,26 +1,39 @@
 name: fx-trade-analytics-aws-opensearch
 
-version: '3.8'
-
 services:
-
   kafka:
-    image: redpandadata/redpanda:latest
-    container_name: fx-redpanda
-    command:
-      - redpanda
-      - start
-      - --overprovisioned
-      - --smp 1
-      - --memory 512M
-      - --reserve-memory 0M
-      - --node-id 0
-      - --check=false
-      - --kafka-addr PLAINTEXT://0.0.0.0:9092
-      - --advertise-kafka-addr PLAINTEXT://localhost:9092
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: fx-kafka
+    hostname: kafka
     ports:
       - "9092:9092"
-      - "9644:9644"
+    environment:
+      # KRaft mode — no Zookeeper. Single-node combined broker + controller.
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # Two listeners:
+      #   PLAINTEXT (29092) — for clients inside the Docker network (kafka-ui).
+      #   PLAINTEXT_HOST (9092) — for clients on the host (Spring services).
+      # Spring services keep using bootstrap-servers: localhost:9092 unchanged.
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
 networks:
   default:

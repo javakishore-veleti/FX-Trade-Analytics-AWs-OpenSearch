@@ -1,0 +1,22 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-seed-currencies
+      author: fx-team
+      changes:
+        - loadData:
+            tableName: currency
+            file: db/changelog/seed/currencies.csv
+            relativeToChangelogFile: false
+            columns:
+              - column:
+                  name: code
+                  type: STRING
+              - column:
+                  name: name
+                  type: STRING
+              - column:
+                  name: country
+                  type: STRING
+              - column:
+                  name: active
+                  type: BOOLEAN

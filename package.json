@@ -16,10 +16,11 @@
     "local:app:run-all": "concurrently -k \"npm:local:app:trade\" \"npm:local:app:risk\" \"npm:local:app:indexer\" \"npm:local:app:masterdata\"",
 
     "portals:install": "cd portals && npm install",
-    "local:ui:admin": "cd portals && npm run start:admin",
-    "local:ui:customer": "cd portals && npm run start:customer",
+    "portals:ensure-install": "cd portals && npm install --prefer-offline --no-audit --no-fund",
+    "local:ui:admin": "npm run portals:ensure-install && cd portals && npm run start:admin",
+    "local:ui:customer": "npm run portals:ensure-install && cd portals && npm run start:customer",
 
-    "local:ui:run-all": "concurrently -k \"npm:local:ui:admin\" \"npm:local:ui:customer\"",
+    "local:ui:run-all": "npm run portals:ensure-install && concurrently -k -n admin,customer \"cd portals && npm run start:admin\" \"cd portals && npm run start:customer\"",
 
     "local:start": "npm run local:docker:up && concurrently -k \"npm:local:app:run-all\" \"npm:local:ui:run-all\"",
     "local:stop": "bash devops/local/shutdown-all.sh",

@@ -1,0 +1,54 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-create-trade-book
+      author: fx-team
+      changes:
+        - createTable:
+            tableName: trade_book
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: code
+                  type: VARCHAR(40)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(120)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: VARCHAR(500)
+              - column:
+                  name: region
+                  type: VARCHAR(40)
+              - column:
+                  name: owner
+                  type: VARCHAR(80)
+              - column:
+                  name: active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: trade_book
+            columnNames: code
+            constraintName: uk_trade_book_code

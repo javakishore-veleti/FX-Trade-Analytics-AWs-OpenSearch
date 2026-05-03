@@ -1,0 +1,17 @@
+from_currency,to_currency,active
+USD,EUR,true
+EUR,USD,true
+USD,GBP,true
+GBP,USD,true
+USD,JPY,true
+JPY,USD,true
+USD,INR,true
+USD,CHF,true
+USD,SGD,true
+USD,AUD,true
+AUD,USD,true
+USD,NZD,true
+EUR,GBP,true
+GBP,EUR,true
+EUR,JPY,true
+GBP,JPY,true

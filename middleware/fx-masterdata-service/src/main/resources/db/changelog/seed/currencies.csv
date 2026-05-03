@@ -1,0 +1,10 @@
+code,name,country,active
+USD,US Dollar,United States,true
+EUR,Euro,Eurozone,true
+GBP,Pound Sterling,United Kingdom,true
+JPY,Japanese Yen,Japan,true
+INR,Indian Rupee,India,true
+SGD,Singapore Dollar,Singapore,true
+CHF,Swiss Franc,Switzerland,true
+NZD,New Zealand Dollar,New Zealand,true
+AUD,Australian Dollar,Australia,true

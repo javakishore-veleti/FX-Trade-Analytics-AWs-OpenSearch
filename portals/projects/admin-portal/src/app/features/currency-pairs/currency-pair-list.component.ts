@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, inject } from '@angular/core';
+import { Component, OnInit, signal, inject, computed } from '@angular/core';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { CurrencyPairService } from '../../shared/services/currency-pair.service';
 import { CurrencyPair } from '../../shared/models/currency-pair.model';
 import { CurrencyPairFormComponent } from './currency-pair-form.component';
@@ -14,68 +15,115 @@ import { CurrencyPairFormComponent } from './currency-pair-form.component';
   selector: 'app-currency-pair-list',
   standalone: true,
   imports: [
-    MatTableModule, MatPaginatorModule, MatButtonModule, MatIconModule,
+    MatTableModule, MatPaginatorModule, MatButtonModule, MatIconModule, MatTooltipModule,
     MatDialogModule, MatSnackBarModule, MatProgressBarModule,
   ],
   template: `
-    <div class="actions" style="margin-bottom: 12px">
-      <h2 style="margin: 0">Currency Pairs</h2>
-      <span class="spacer" style="flex: 1"></span>
-      <button mat-flat-button color="primary" (click)="openForm(null)">
-        <mat-icon>add</mat-icon> New Pair
-      </button>
-    </div>
+    <section class="stat-row">
+      <div class="stat-tile">
+        <div class="stat-tile__label">Total pairs</div>
+        <div class="stat-tile__value">{{ total() }}</div>
+        <div class="stat-tile__hint">configured FX pairs</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-tile__label">Active</div>
+        <div class="stat-tile__value">{{ activeCount() }}</div>
+        <div class="stat-tile__hint">tradable now</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-tile__label">Disabled</div>
+        <div class="stat-tile__value">{{ total() - activeCount() }}</div>
+        <div class="stat-tile__hint">excluded from new trades</div>
+      </div>
+    </section>
 
-    @if (loading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+    <section class="page-card">
+      <header class="page-card__header">
+        <div>
+          <h2 class="page-card__title">Currency Pairs</h2>
+          <p class="page-card__subtitle">Allowed FX trading combinations — fed to the trade-service allow-list</p>
+        </div>
+        <span class="spacer" style="flex: 1"></span>
+        <button mat-flat-button color="primary" (click)="openForm(null)">
+          <mat-icon>add</mat-icon> New Pair
+        </button>
+      </header>
 
-    <table mat-table [dataSource]="rows()">
-      <ng-container matColumnDef="id">
-        <th mat-header-cell *matHeaderCellDef>ID</th>
-        <td mat-cell *matCellDef="let r">{{ r.id }}</td>
-      </ng-container>
-      <ng-container matColumnDef="from">
-        <th mat-header-cell *matHeaderCellDef>From</th>
-        <td mat-cell *matCellDef="let r">{{ r.fromCurrency }}</td>
-      </ng-container>
-      <ng-container matColumnDef="to">
-        <th mat-header-cell *matHeaderCellDef>To</th>
-        <td mat-cell *matCellDef="let r">{{ r.toCurrency }}</td>
-      </ng-container>
-      <ng-container matColumnDef="active">
-        <th mat-header-cell *matHeaderCellDef>Active</th>
-        <td mat-cell *matCellDef="let r">{{ r.active ? '✓' : '—' }}</td>
-      </ng-container>
-      <ng-container matColumnDef="actions">
-        <th mat-header-cell *matHeaderCellDef></th>
-        <td mat-cell *matCellDef="let r">
-          <button mat-icon-button (click)="openForm(r)"><mat-icon>edit</mat-icon></button>
-          <button mat-icon-button color="warn" (click)="remove(r)"><mat-icon>delete</mat-icon></button>
-        </td>
-      </ng-container>
-      <tr mat-header-row *matHeaderRowDef="displayed"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayed"></tr>
-    </table>
+      @if (loading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
 
-    <mat-paginator
-      [length]="total()"
-      [pageSize]="size()"
-      [pageIndex]="page()"
-      [pageSizeOptions]="[10, 20, 50]"
-      (page)="onPage($event)">
-    </mat-paginator>
+      <div class="page-card__body">
+        <table mat-table [dataSource]="rows()">
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef>ID</th>
+            <td mat-cell *matCellDef="let r" style="color: var(--text-muted)">#{{ r.id }}</td>
+          </ng-container>
+          <ng-container matColumnDef="pair">
+            <th mat-header-cell *matHeaderCellDef>Pair</th>
+            <td mat-cell *matCellDef="let r">
+              <span class="pair-tile">
+                <span class="pair-tile__from">{{ r.fromCurrency }}</span>
+                <mat-icon class="pair-tile__arrow">arrow_forward</mat-icon>
+                <span class="pair-tile__to">{{ r.toCurrency }}</span>
+              </span>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="active">
+            <th mat-header-cell *matHeaderCellDef>Status</th>
+            <td mat-cell *matCellDef="let r">
+              <span class="pill" [class.pill--ok]="r.active" [class.pill--off]="!r.active">
+                {{ r.active ? 'Active' : 'Inactive' }}
+              </span>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef style="text-align: right"></th>
+            <td mat-cell *matCellDef="let r" style="text-align: right">
+              <button mat-icon-button (click)="openForm(r)" matTooltip="Edit"><mat-icon>edit</mat-icon></button>
+              <button mat-icon-button color="warn" (click)="remove(r)" matTooltip="Delete"><mat-icon>delete_outline</mat-icon></button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="displayed"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayed"></tr>
+        </table>
+      </div>
+
+      <mat-paginator
+        [length]="total()"
+        [pageSize]="size()"
+        [pageIndex]="page()"
+        [pageSizeOptions]="[10, 20, 50]"
+        (page)="onPage($event)">
+      </mat-paginator>
+    </section>
   `,
+  styles: [`
+    .pair-tile {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px;
+      background: linear-gradient(180deg, #FFFFFF 0%, var(--surface-soft) 100%);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      font-family: 'SF Mono', 'Menlo', monospace;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .pair-tile__from { color: var(--brand-navy); }
+    .pair-tile__to   { color: var(--brand-cyan); }
+    .pair-tile__arrow { font-size: 16px; width: 16px; height: 16px; color: var(--text-subtle); }
+  `],
 })
 export class CurrencyPairListComponent implements OnInit {
   private api = inject(CurrencyPairService);
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
 
-  displayed = ['id', 'from', 'to', 'active', 'actions'];
+  displayed = ['id', 'pair', 'active', 'actions'];
   rows = signal<CurrencyPair[]>([]);
   total = signal(0);
   page = signal(0);
   size = signal(10);
   loading = signal(false);
+  activeCount = computed(() => this.rows().filter(r => r.active).length);
 
   ngOnInit() { this.load(); }
 

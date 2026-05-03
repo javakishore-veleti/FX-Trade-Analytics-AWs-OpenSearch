@@ -7,15 +7,19 @@ import { TradeHit, TradePlaceResponse, TradeRequest } from '../models/trade.mode
 export class TradeService {
   private http = inject(HttpClient);
 
-  place(req: TradeRequest): Observable<TradePlaceResponse> {
-    return this.http.post<TradePlaceResponse>('/api/trades/place', req);
+  /**
+   * @param baseUrl Optional region-specific backend URL. Empty string falls back
+   *                to the relative path served via proxy.conf.json (local dev).
+   */
+  place(req: TradeRequest, baseUrl: string = ''): Observable<TradePlaceResponse> {
+    return this.http.post<TradePlaceResponse>(`${baseUrl}/api/trades/place`, req);
   }
 
-  search(filters: { risk?: string; region?: string; size?: number } = {}): Observable<TradeHit[]> {
+  search(filters: { risk?: string; region?: string; size?: number } = {}, baseUrl: string = ''): Observable<TradeHit[]> {
     let params = new HttpParams();
     if (filters.risk) params = params.set('risk', filters.risk);
     if (filters.region) params = params.set('region', filters.region);
     params = params.set('size', filters.size ?? 50);
-    return this.http.get<TradeHit[]>('/trades/search', { params });
+    return this.http.get<TradeHit[]>(`${baseUrl}/trades/search`, { params });
   }
 }

@@ -12,18 +12,18 @@ spring:
     username: sa
     password:
 
+  # Liquibase owns the schema and seed data — Hibernate just maps to it.
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    enabled: true
+
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
-
-  sql:
-    init:
-      mode: always
-      platform: h2
 
   h2:
     console:
@@ -62,12 +62,7 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: update
-
-  sql:
-    init:
-      mode: always
-      platform: postgres
+      ddl-auto: validate
 
   h2:
     console:

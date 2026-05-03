@@ -1,15 +1,17 @@
 name: fx-trade-analytics-aws-opensearch
 
-version: '3.8'
-
 services:
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: fx-kafka-ui
+    # Moved off 8080 to avoid colliding with fx-trade-service.
     ports:
-      - "8080:8080"
+      - "8085:8080"
     environment:
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+      KAFKA_CLUSTERS_0_NAME: fx-local
+      # In-Docker listener — Confluent broker advertises kafka:29092 internally.
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
 
 networks:
   default:

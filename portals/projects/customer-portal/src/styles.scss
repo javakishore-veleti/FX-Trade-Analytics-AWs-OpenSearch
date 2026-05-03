@@ -3,15 +3,233 @@
 html {
   color-scheme: light;
   @include mat.theme((
-    color: mat.$green-palette,
-    typography: Roboto,
-    density: 0,
+    color: mat.$cyan-palette,
+    typography: 'Inter, "Helvetica Neue", sans-serif',
+    density: -1,
   ));
+
+  // Brand override — teal-emerald with a sky/violet wash for the hero gradient.
+  --mat-sys-primary: #0D9488;
+  --mat-sys-on-primary: #FFFFFF;
+  --mat-sys-primary-container: #CCFBF1;
+  --mat-sys-on-primary-container: #134E4A;
+  --mat-sys-secondary: #0EA5E9;
+  --mat-sys-tertiary: #6366F1;
+
+  // Brand custom properties
+  --brand-teal: #0D9488;
+  --brand-emerald: #059669;
+  --brand-sky: #0EA5E9;
+  --brand-indigo: #6366F1;
+  --brand-grad: linear-gradient(135deg, #0D9488 0%, #0EA5E9 55%, #6366F1 100%);
+  --brand-grad-soft: linear-gradient(135deg, #CCFBF1 0%, #DBEAFE 60%, #E0E7FF 100%);
+
+  --surface-page: #F8FAFC;
+  --surface-card: #FFFFFF;
+  --surface-soft: #F0FDFA;
+  --border-subtle: #E2E8F0;
+
+  --text-strong: #0F172A;
+  --text-default: #1E293B;
+  --text-muted: #475569;
+  --text-subtle: #94A3B8;
+
+  --risk-low: #10B981;
+  --risk-low-bg: #ECFDF5;
+  --risk-medium: #D97706;
+  --risk-medium-bg: #FEF3C7;
+  --risk-high: #DC2626;
+  --risk-high-bg: #FEE2E2;
+
+  --shadow-sm: 0 1px 2px rgba(15, 118, 110, 0.05), 0 1px 3px rgba(15, 118, 110, 0.04);
+  --shadow-md: 0 6px 20px rgba(15, 118, 110, 0.10), 0 2px 6px rgba(15, 118, 110, 0.06);
+  --shadow-lg: 0 16px 40px rgba(15, 118, 110, 0.14), 0 4px 12px rgba(15, 118, 110, 0.06);
 }
 
-html, body { height: 100%; margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Inter', 'Helvetica Neue', sans-serif;
+  background: var(--surface-page);
+  color: var(--text-default);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+}
 
+// ---------------- Reusable utilities ----------------
 .spacer { flex: 1 1 auto; }
 .full-width { width: 100%; }
-.form-row { display: flex; gap: 16px; flex-wrap: wrap; }
+
+.form-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
 .form-row > * { flex: 1 1 200px; }
+
+// ---------------- Hero card (Place Trade) ----------------
+.hero {
+  position: relative;
+  background: var(--brand-grad);
+  color: #FFFFFF;
+  border-radius: 20px;
+  padding: 28px 32px;
+  margin-bottom: 24px;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(80% 60% at 90% 0%, rgba(255,255,255,0.25), transparent 60%),
+              radial-gradient(60% 60% at 0% 100%, rgba(255,255,255,0.18), transparent 50%);
+  pointer-events: none;
+}
+.hero__eyebrow {
+  font-size: 12px; font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin-bottom: 8px;
+}
+.hero__title {
+  font-size: 28px; font-weight: 700;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.02em;
+}
+.hero__sub {
+  font-size: 15px;
+  opacity: 0.92;
+  max-width: 560px;
+  margin: 0;
+}
+
+// ---------------- Section card ----------------
+.section-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-strong);
+  margin: 0 0 16px 0;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+// ---------------- Stat cards ----------------
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--brand-teal);
+}
+.stat-card--low::before    { background: var(--risk-low); }
+.stat-card--medium::before { background: var(--risk-medium); }
+.stat-card--high::before   { background: var(--risk-high); }
+
+.stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+.stat-card__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.stat-card__value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-strong);
+  letter-spacing: -0.02em;
+}
+.stat-card__hint {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+// ---------------- Risk pills ----------------
+.risk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.risk-pill::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.risk-pill--LOW    { background: var(--risk-low-bg);    color: #065F46; }
+.risk-pill--LOW::before    { background: var(--risk-low); }
+.risk-pill--MEDIUM { background: var(--risk-medium-bg); color: #92400E; }
+.risk-pill--MEDIUM::before { background: var(--risk-medium); }
+.risk-pill--HIGH   { background: var(--risk-high-bg);   color: #991B1B; }
+.risk-pill--HIGH::before   { background: var(--risk-high); }
+
+// ---------------- Pair display ----------------
+.pair-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-weight: 700;
+  font-size: 13px;
+}
+.pair-chip__from { color: var(--brand-teal); }
+.pair-chip__to   { color: var(--brand-indigo); }
+
+// ---------------- Tables ----------------
+.mat-mdc-table { width: 100%; background: transparent; }
+.mat-mdc-header-row { background: var(--surface-soft); }
+.mat-mdc-header-cell {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted) !important;
+}
+.mat-mdc-row { transition: background 120ms ease; }
+.mat-mdc-row:hover { background: var(--surface-soft); }
+.mat-mdc-cell {
+  font-size: 14px;
+  color: var(--text-default) !important;
+}
+
+// Make number-heavy cells use a tabular numerals font feature
+.cell-num { font-variant-numeric: tabular-nums; font-weight: 500; }

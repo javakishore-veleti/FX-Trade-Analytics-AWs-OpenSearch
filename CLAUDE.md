@@ -53,7 +53,7 @@ Preserve this event-driven decoupling. Do **not** collapse services into direct 
   - `fx-trade-service/` — REST entry point + Kafka producer + OpenSearch search API (port **8080**)
   - `fx-risk-service/` — Kafka consumer, risk classifier, enriched producer, DLQ (port **8081**)
   - `fx-opensearch-indexer/` — Kafka consumer → OpenSearch indexing (port **8082**)
-  - `fx-masterdata-service/` — JPA/REST CRUD for currencies, currency pairs, trade books (port **8083**). Layered: `api/` → `service/` (interface) + `service/impl/` → `repository/` (Spring Data JPA) → `entity/`. H2 in-memory by default; `--spring.profiles.active=postgres` switches to `localhost:5432/fxdb`. OpenAPI/Swagger at `/swagger-ui.html`.
+  - `fx-masterdata-service/` — JPA/REST CRUD for currencies, currency pairs, trade books (port **8083**). Layered: `api/` → `service/` (interface) + `service/impl/` → `repository/` (Spring Data JPA) → `entity/`. H2 in-memory by default; `--spring.profiles.active=postgres` switches to `localhost:5432/fxdb`. **Schema and seed are owned by Liquibase** (changelog at `src/main/resources/db/changelog/db.changelog-master.yaml`); Hibernate runs in `validate` mode and never alters DDL. To add a new migration: drop a new YAML file in `db/changelog/changes/` and add an `include` line in the master changelog. OpenAPI/Swagger at `/swagger-ui.html`.
 - **`devops/local/`** — Docker Compose stacks for Kafka, OpenSearch, Postgres, observability, plus orchestration scripts
 - **`fx-admin-ui/`** — legacy minimal static React-via-CDN admin page (kept for reference; superseded by `portals/`)
 - **`portals/`** — Angular 21 workspace with two apps:
@@ -105,11 +105,12 @@ PM2 mode: `npm run fx:start` / `fx:status` / `fx:stop` (uses `ecosystem.config.j
 ### UI dev workflow
 
 ```bash
-npm run portals:install          # one-time: installs Angular workspace deps
 npm run local:ui:admin           # http://localhost:4200 (admin CRUD on master data)
 npm run local:ui:customer        # http://localhost:4201 (place trade + recent trades)
 npm run local:ui:run-all         # both at once
 ```
+
+Each script auto-runs `portals:ensure-install` first (`npm install --prefer-offline --no-audit --no-fund` inside `portals/`). It's a no-op when deps are already in sync (~1s overhead) and pulls only the diff when `package.json` changed. If you ever need a clean install, run `npm run portals:install` (no flags) explicitly.
 
 Both Angular apps use `proxy.conf.json` to forward `/api/master/*` to master-data (8083) and the customer portal additionally proxies `/api/trades` and `/trades` to trade-service (8080). No CORS config needed in dev.
 
@@ -126,7 +127,32 @@ Both Angular apps use `proxy.conf.json` to forward `/api/master/*` to master-dat
 
 **Gotcha — config drift**: `fx-risk-service/application.yml` declares `app.kafka.output-topic: risk-events`, but `TradeRiskConsumer.java` hardcodes `trade-events-enriched`. The hardcoded topic wins. Either wire the config in or delete the unused property — don't assume `risk-events` exists anywhere.
 
-**Gotcha — duplicated DLQ paths**: risk-service has both a try/catch that publishes to `trade-events-dlq` AND a `KafkaErrorConfig` (`DefaultErrorHandler` + `DeadLetterPublishingRecoverer`, 3 retries / 2s backoff) that would also route failures. Because the listener catches `Exception` itself, the Spring error handler never fires. If you're adding "proper retry," remove the broad catch first.
+**Gotcha — Kafka wire format is plain UTF-8 string, NOT `JsonSerializer`**: The producers manually JSON-encode payloads with Jackson (`mapper.writeValueAsString(dto)`) and ship them as Strings. All three services therefore configure `StringSerializer`/`StringDeserializer` for both keys and values. **Do not switch to Spring's `JsonSerializer` here** — it would JSON-encode the already-stringified JSON, producing `"\"{...}\""` on the wire and breaking every consumer (the symptom is 100% of messages going to DLQ with double/triple-escaped backslashes). If you ever migrate to typed serdes, do it across producer + consumer + KafkaTemplate generic type in lockstep.
+
+**DLQ flow** (current): `TradeRiskConsumer` and `TradeIndexerConsumer` let exceptions propagate. Spring Kafka's `DefaultErrorHandler` (configured in each service's `KafkaErrorConfig`) retries **3 times with 2s backoff**, then the `DeadLetterPublishingRecoverer` routes the original record to `trade-events-dlq` (risk-service) or `trade-index-dlq` (indexer). `DLQConsumer` in each service just logs the message body for visibility. Note: deserialization failures will burn all 3 retries before reaching DLQ since they're never going to succeed — add a `setClassifications(Map.of(SerializationException.class, false), false)` on the `DefaultErrorHandler` later if that latency matters.
+
+### Region routing (customer portal → regional trade-service)
+
+The customer portal does **not** hardcode the trade-service URL. On startup it fetches `GET /api/config/regions` from trade-service, which returns a `region → URL` map sourced from `fx.regions.endpoints` in `application.yml`. The Region dropdown is built from that map's keys. When the user submits a trade, `TradeService.place(req, baseUrl)` posts to `${baseUrl}/api/trades/place` for the selected region.
+
+```yaml
+# fx-trade-service/application.yml
+fx:
+  regions:
+    endpoints:
+      us-east-1: http://localhost:8080    # local dev: every region → same instance
+      us-west-2: http://localhost:8080
+      eu-west-1: http://localhost:8080
+      ap-south-1: http://localhost:8080
+  cors:
+    allowed-origins:
+      - http://localhost:4200
+      - http://localhost:4201
+```
+
+In AWS, override per regional deployment. Spring's relaxed binding maps env vars: `FX_REGIONS_ENDPOINTS_US_EAST_1=https://trades.us-east-1.example.com` becomes `fx.regions.endpoints.us-east-1`. Add a region by adding it to the map — no code or UI change needed.
+
+CORS is needed because in dev the customer portal at `:4201` posts cross-origin to trade-service at `:8080`. Allowed origins are configurable via `fx.cors.allowed-origins`.
 
 ### Master-data validation in trade-service
 
@@ -166,7 +192,8 @@ Both Angular apps use `proxy.conf.json` to forward `/api/master/*` to master-dat
 | OpenSearch Dashboards | http://localhost:5601 |
 | Grafana | http://localhost:3000 |
 | Prometheus | http://localhost:9090 |
-| Kafka | localhost:9092 |
+| Kafka (Confluent cp-kafka 7.7, KRaft mode) | host: `localhost:9092` / in-Docker: `kafka:29092` |
+| Kafka UI | http://localhost:8085 (moved off 8080 to free it for trade-service) |
 
 Each Spring service exposes Prometheus metrics via Actuator at `/actuator/prometheus`.
 

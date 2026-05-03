@@ -1,0 +1,19 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-seed-currency-pairs
+      author: fx-team
+      changes:
+        - loadData:
+            tableName: currency_pair
+            file: db/changelog/seed/currency-pairs.csv
+            relativeToChangelogFile: false
+            columns:
+              - column:
+                  name: from_currency
+                  type: STRING
+              - column:
+                  name: to_currency
+                  type: STRING
+              - column:
+                  name: active
+                  type: BOOLEAN

@@ -4,14 +4,22 @@ set -e
 
 NETWORK_NAME="fx-trade-analytics-aws-opensearch-network"
 
-echo "🛑 Stopping and removing all services..."
+echo "🛑 Stopping all services..."
 
-docker compose -f docker-compose.yaml down -v
-docker compose -f postgres/docker-compose.yaml down -v
-docker compose -f observability/docker-compose.yml down -v
-docker compose -f devops/local/opensearch/docker-compose.yml down -v
+echo "🧯 Stopping Kafka..."
 docker compose -f devops/local/kafka/docker-compose.yml down -v
+
+echo "🧯 Stopping Kafka UI..."
 docker compose -f devops/local/kafka/kafka-ui/docker-compose.yml down -v
+
+echo "🧯 Stopping OpenSearch..."
+docker compose -f devops/local/opensearch/docker-compose.yml down -v
+
+#echo "🧯 Stopping Observability..."
+#docker compose -f devops/local/observability/docker-compose.yml down -v
+
+#echo "🧯 Stopping Postgres..."
+#docker compose -f devops/local/postgres/docker-compose.yml down -v
 
 echo ""
 echo "🧹 Removing network..."
@@ -24,7 +32,7 @@ else
 fi
 
 echo ""
-echo "🧼 Optional: remove dangling volumes"
+echo "🧼 Cleaning unused volumes..."
 docker volume prune -f
 
 echo ""
