@@ -28,7 +28,10 @@
 
     "fx:start": "npm run local:docker:up && pm2 start ecosystem.config.js",
     "fx:status": "pm2 list && npm run local:docker:status",
-    "fx:stop": "pm2 delete all && npm run local:docker:down"
+    "fx:stop": "pm2 delete all && npm run local:docker:down",
+
+    "setup:aws:iam-all": "bash .github/aws/scripts/aws-iam-setup.sh",
+    "destroy:aws:iam-all": "bash .github/aws/scripts/aws-iam-destroy.sh"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"

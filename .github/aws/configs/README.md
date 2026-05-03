@@ -21,67 +21,82 @@ The **Group** is the natural unit of "this is the team / set of identities that 
 
 ## How to bootstrap the IAM resources
 
-Use the manual GitHub workflow — no local CLI required.
+Run a **single npm command from your laptop**. Admin credentials never leave your machine; the new deployer access keys are printed only to your local terminal (never to a GitHub Actions log).
 
-### Step 1 — Set bootstrap admin credentials as repo secrets
+### Step 1 — Export your admin AWS credentials in your shell
 
-You need ADMIN-level AWS credentials (used **only** to create the IAM resources below; they're never used by any other workflow). In **GitHub → Settings → Secrets and variables → Actions**, add:
+These are project-namespaced env vars so they don't collide with your shell-wide `AWS_*` variables. Use the access keys of an AWS user that has `iam:*` permission (typically your admin / root user). They're only used for this one-time bootstrap.
 
-| Secret | Value |
-|---|---|
-| `BOOTSTRAP_AWS_ACCESS_KEY_ID`     | Access key id of an admin AWS user |
-| `BOOTSTRAP_AWS_SECRET_ACCESS_KEY` | Matching secret access key         |
+```bash
+export FX_TRADE_ANALYTICS_AWS_ACCESS_KEY=<your admin access key id>
+export FX_TRADE_ANALYTICS_AWS_SECRET=<your admin secret access key>
+# optional override (defaults to us-east-1; IAM is global so any region works)
+export AWS_REGION=us-east-1
+```
 
-### Step 2 — Run the bootstrap workflow
+If either is missing the script aborts with a clear error — it never silently falls back to your default AWS profile.
 
-In the **Actions** tab, pick **`000-AWS-Bootstrap-IAM-Deployer`** and click **Run workflow**.
+### Step 2 — Run the npm script
 
-- Type `BOOTSTRAP` in the `confirm` input.
-- Defaults are fine for the `policy_name` / `group_name` / `user_name` inputs.
-- Click **Run workflow**.
+From the repo root:
 
-The workflow will (idempotent on the first 5 steps):
-1. Create the Customer Managed Policy from `01-AWS-ThisRepo-AWSUser-Policies.json` (or update its default version if it already exists).
+```bash
+npm run setup:aws:iam-all
+```
+
+The script (idempotent on steps 1-5) will:
+1. Create the Customer Managed Policy from `01-AWS-ThisRepo-AWSUser-Policies.json` — or publish a new default version if it already exists.
 2. Create the IAM Group.
 3. Attach the policy to the Group.
 4. Create the IAM User.
 5. Add the User to the Group.
-6. Generate a fresh access-key pair for the User.
+6. Generate a fresh access-key pair for the User and print it to your terminal.
 
-The new access keys are printed in the workflow's final step output.
+### Step 3 — Copy the printed keys into GitHub repo secrets
 
-### Step 3 — Copy the new keys into the deployer repo secrets
-
-Add two more repo secrets (these are the ones every other workflow uses):
+In **GitHub → Settings → Secrets and variables → Actions**, add:
 
 | Secret | Value |
 |---|---|
-| `AWS_ACCESS_KEY_ID`     | from the workflow output |
-| `AWS_SECRET_ACCESS_KEY` | from the workflow output |
+| `AWS_ACCESS_KEY_ID`     | from the script output |
+| `AWS_SECRET_ACCESS_KEY` | from the script output |
 
-### Step 4 — Scrub
+These are the credentials every other workflow under `.github/workflows/` uses.
 
-After copying the keys:
+### Step 4 — Unset the admin env vars in your shell
 
-1. **Delete the workflow run** (Actions → run → ⋯ → Delete run) so the access key isn't sitting in logs.
-2. Optionally **delete the `BOOTSTRAP_AWS_*` secrets** — they're only needed if you ever re-run the bootstrap (e.g. to update the policy or add another user).
+```bash
+unset FX_TRADE_ANALYTICS_AWS_ACCESS_KEY FX_TRADE_ANALYTICS_AWS_SECRET
+```
 
-That's it. Every workflow under `.github/workflows/` can now run.
+(Or close the shell.) The admin creds are no longer needed unless you re-run the bootstrap to update the policy or add another deployer.
 
 ## Adding a future deployer user
 
-Re-run the **same `000-AWS-Bootstrap-IAM-Deployer` workflow** with a different `user_name` input (e.g. `teammate-deployer`, or `staging-ci-deployer`). The policy + group already exist (idempotent skip); the workflow only creates the new user, adds them to the group, and emits their access keys.
+Set the env vars again, then run with a different `USER_NAME`:
+
+```bash
+USER_NAME=teammate-deployer npm run setup:aws:iam-all
+```
+
+Policy + group already exist (idempotent skip); the script only creates the new user, adds them to the group, and emits their access keys.
 
 ## Tearing it all down
 
-Use the **`000-AWS-Destroy-IAM-Deployer`** workflow. Type `DESTROY` in the confirm input. Same `BOOTSTRAP_AWS_*` secrets required. Deletes (in order): user's access keys → user → group → policy versions → policy.
+```bash
+export FX_TRADE_ANALYTICS_AWS_ACCESS_KEY=<your admin access key id>
+export FX_TRADE_ANALYTICS_AWS_SECRET=<your admin secret access key>
+CONFIRM_DESTROY=DESTROY npm run destroy:aws:iam-all
+```
+
+Refuses to run without `CONFIRM_DESTROY=DESTROY`. Deletes (in order): user's access keys → user → group → policy versions → policy. Idempotent — skips anything that already doesn't exist.
 
 ## Updating the policy
 
 If a new AWS service gets added to a workflow:
 
 1. Edit `01-AWS-ThisRepo-AWSUser-Policies.json` — add the new `service:*` action to the relevant `Sid` block (or add a new `Sid`).
-2. Re-run **`000-AWS-Bootstrap-IAM-Deployer`** — the workflow detects the existing policy and publishes a new default version (pruning old versions to stay under AWS's 5-version limit).
+2. Re-run `npm run setup:aws:iam-all` — the script detects the existing policy and publishes a new default version (pruning old versions to stay under AWS's 5-version limit).
 
 ## Scope of the policy
 

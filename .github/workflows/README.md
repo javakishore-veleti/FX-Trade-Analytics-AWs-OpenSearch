@@ -18,7 +18,6 @@ Setup and destroy share the same stack name (`fx-${environment}-foo` or `fx-${en
 
 | #   | Setup                                            | Destroy                                          | Scope        | What it provisions |
 |-----|--------------------------------------------------|--------------------------------------------------|--------------|-------------------|
-| 000 | `000-AWS-Bootstrap-IAM-Deployer.yml`             | `000-AWS-Destroy-IAM-Deployer.yml`               | Global (one-time) | IAM Customer Managed Policy + Group + User + access keys for the deployer identity. Uses **bootstrap admin secrets** (`BOOTSTRAP_AWS_*`) — see the IAM bootstrap section below |
 | 001 | `001-AWS-Initial-Setup-VPC.yml`                  | `001-AWS-Destroy-VPC.yml`                        | Multi-region | One VPC per region (or reuses an existing VPC if its id is supplied via `vpc_overrides_json`) — 2 public + 2 private subnets, IGW, optional NAT |
 | 002 | `002-AWS-Initial-Setup-IAM-Roles.yml`            | `002-AWS-Destroy-IAM-Roles.yml`                  | Global       | ECS task-execution role + per-service task roles |
 | 003 | `003-AWS-Initial-Setup-ECR.yml`                  | `003-AWS-Destroy-ECR.yml`                        | Single-region | One ECR repo per Spring Boot service |
@@ -73,31 +72,34 @@ Each setup workflow MUST expose both `workflow_dispatch:` (so you can run it fro
 
 ## One-time AWS-side setup (IAM bootstrap)
 
-The deployer identity is created **by the `000-AWS-Bootstrap-IAM-Deployer` workflow itself** — no local CLI required.
+The deployer identity is created **locally on your laptop**, not via a workflow. Reasons: admin AWS credentials never need to enter GitHub at all, and the new deployer access keys are emitted only to your local terminal — never to a workflow log that anyone with repo access could read.
 
-The IAM policy that defines what the deployer is allowed to do lives at [`.github/aws/configs/01-AWS-ThisRepo-AWSUser-Policies.json`](../aws/configs/01-AWS-ThisRepo-AWSUser-Policies.json). Full setup walkthrough in [`.github/aws/configs/README.md`](../aws/configs/README.md).
+The IAM policy that defines what the deployer is allowed to do lives at [`.github/aws/configs/01-AWS-ThisRepo-AWSUser-Policies.json`](../aws/configs/01-AWS-ThisRepo-AWSUser-Policies.json). Full walkthrough in [`.github/aws/configs/README.md`](../aws/configs/README.md).
 
-**4-step bootstrap (one-time per AWS account):**
+**Quick version (one npm command):**
 
-1. **Add bootstrap admin secrets to the repo** (Settings → Secrets and variables → Actions):
-   - `BOOTSTRAP_AWS_ACCESS_KEY_ID`
-   - `BOOTSTRAP_AWS_SECRET_ACCESS_KEY`
+```bash
+export FX_TRADE_ANALYTICS_AWS_ACCESS_KEY=<your admin access key id>
+export FX_TRADE_ANALYTICS_AWS_SECRET=<your admin secret access key>
+npm run setup:aws:iam-all
+```
 
-   These are the access keys of an admin AWS user. They're used **only** for the bootstrap workflow; you can delete them afterward.
+The script (idempotent on policy / group / user / membership) creates the Customer Managed Policy + IAM Group + IAM User, mints a fresh access-key pair, and prints them to your terminal. Copy the printed values into GitHub repo secrets:
 
-2. **Run `000-AWS-Bootstrap-IAM-Deployer`** from the Actions tab. Type `BOOTSTRAP` in the confirm input. Click Run.
+| Secret | Value |
+|---|---|
+| `AWS_ACCESS_KEY_ID`     | from the script output |
+| `AWS_SECRET_ACCESS_KEY` | from the script output |
 
-   The workflow creates the Customer Managed Policy + Group + User + access keys (idempotent on the first 5 steps; access keys are always freshly minted). Output prints the new keys.
+Then unset the admin env vars (`unset FX_TRADE_ANALYTICS_AWS_ACCESS_KEY FX_TRADE_ANALYTICS_AWS_SECRET`) and you're done. Every workflow under `.github/workflows/` can now run.
 
-3. **Copy the new keys into the deployer secrets**:
-   - `AWS_ACCESS_KEY_ID`
-   - `AWS_SECRET_ACCESS_KEY`
+**Tearing it down:**
 
-4. **Scrub the workflow run** (Actions → run → ⋯ → Delete run) so the access key isn't sitting in logs. Optionally delete the `BOOTSTRAP_AWS_*` secrets too.
-
-**Adding another deployer user:** re-run `000-AWS-Bootstrap-IAM-Deployer` with a different `user_name` input. Policy + group are reused; only a new user + keys are created.
-
-**Tearing it all down:** `000-AWS-Destroy-IAM-Deployer` workflow. Type `DESTROY`. Same `BOOTSTRAP_AWS_*` secrets required.
+```bash
+export FX_TRADE_ANALYTICS_AWS_ACCESS_KEY=<admin>
+export FX_TRADE_ANALYTICS_AWS_SECRET=<admin>
+CONFIRM_DESTROY=DESTROY npm run destroy:aws:iam-all
+```
 
 After the secrets are set, every workflow in this folder picks them up automatically.
 
