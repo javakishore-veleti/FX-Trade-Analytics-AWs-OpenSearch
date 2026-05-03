@@ -49,10 +49,12 @@ masterdata:
 # so adding a region here makes it appear in the UI.
 fx:
   regions:
+    # Customer portal dropdown is built from this map's keys. Aligned with
+    # the AWS demo regions you've provisioned (or plan to) via 004-AWS-Setup-
+    # Region-OpenSearch. Add a region here when you provision a new AWS domain.
     endpoints:
       us-east-1: http://localhost:9080
-      us-west-2: http://localhost:9080
-      eu-west-1: http://localhost:9080
+      eu-west-2: http://localhost:9080
       ap-south-1: http://localhost:9080
   cors:
     allowed-origins:
