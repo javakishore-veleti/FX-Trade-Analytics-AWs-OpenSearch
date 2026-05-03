@@ -35,6 +35,7 @@
 - [🔥 Highlights](#-highlights)
 - [🛠️ AWS OpenSearch Implementation Plan](#️-aws-opensearch-implementation-plan)
   - [Goal](#goal)
+  - [Prerequisites — AWS Management Console setup](#prerequisites--aws-management-console-setup-before-running-anything)
   - [Deployment modes](#deployment-modes)
   - [Provider abstraction (factory pattern)](#provider-abstraction-factory-pattern)
   - [Pagination strategy](#pagination-strategy)
@@ -319,6 +320,99 @@ Showcase **AWS OpenSearch UI cross-region data access** end-to-end on this codeb
 2. Letting the application — **whether running locally on a laptop or deployed to ECS** — write into the right regional OpenSearch domain based on each trade's `region` field.
 3. Running the **AWS-managed OpenSearch UI in `us-east-1`** that federates queries across all three regional domains as a single pane of glass — without moving data.
 4. Building a **companion search view in the admin portal** with region radio buttons (single-region only; cross-region demo lives in the AWS UI).
+
+## Prerequisites — AWS Management Console setup before running anything
+
+Do these **once per AWS account** before `npm run setup:aws:iam-all` (or any GitHub Actions workflow) will work. All clicks happen in the [AWS Management Console](https://console.aws.amazon.com).
+
+### 1 · Have an AWS account
+
+Sign up at [aws.amazon.com](https://aws.amazon.com) if you don't have one. Free Tier covers most experimentation; the project resources (OpenSearch domains, NAT gateways, etc.) are paid — budget roughly **~$350/mo** while the 7-region demo is running, **~$70/mo** when domains are paused.
+
+### 2 · Create a dedicated bootstrap admin IAM user
+
+**Don't use your root account access keys** — AWS strongly discourages it, and you can't delete root keys cleanly. Create a dedicated IAM user that exists only for the one-time bootstrap.
+
+1. Sign in to the AWS Console.
+2. Go to **IAM** (in the search bar) → **Users** in the left sidebar.
+3. Click **Create user** (top-right).
+4. **User name**: `fx-bootstrap-admin` (or any name you prefer — this is the one-time admin, *not* the deployer that workflows use).
+5. **Provide user access to the AWS Management Console**: leave this **UNCHECKED**. This user only needs programmatic access (CLI / API).
+6. Click **Next**.
+7. **Permissions options**: select **Attach policies directly**.
+8. In the policy search box, type `AdministratorAccess` and check the box next to it.
+9. Click **Next** → **Create user**.
+
+> ✋ The screen at this point is for **creating an IAM User**. If you accidentally end up at a "Create role" screen with a "Custom trust policy" editor, back out — you're in the wrong place. Roles are different from users, and we want a User here.
+
+### 3 · Generate an access key for that user
+
+1. Click into the user you just created (`fx-bootstrap-admin`).
+2. Open the **Security credentials** tab.
+3. Scroll to **Access keys** → click **Create access key**.
+4. **Use case**: pick **Application running outside AWS** (or **Command Line Interface**).
+5. Click **Next** (description is optional) → **Create access key**.
+6. **Save the Secret access key NOW.** It is shown only once. The Access key ID can be retrieved later, but the secret cannot.
+
+### 4 · Install the local CLI tools the bootstrap script depends on
+
+```bash
+# macOS (Homebrew)
+brew install awscli jq
+
+# Linux (Debian/Ubuntu)
+sudo apt update && sudo apt install -y awscli jq
+```
+
+Verify both are on `PATH`:
+
+```bash
+aws --version    # → aws-cli/2.x.x
+jq --version     # → jq-1.x
+```
+
+### 5 · Export the bootstrap admin credentials in your shell
+
+```bash
+export FX_TRADE_ANALYTICS_AWS_ACCESS_KEY=<Access key id from step 3>
+export FX_TRADE_ANALYTICS_AWS_SECRET=<Secret access key from step 3>
+# Optional (defaults to us-east-1; IAM is global so any region works):
+export AWS_REGION=us-east-1
+```
+
+These are project-namespaced env vars so they don't collide with any shell-wide `AWS_*` you may already have. The script reads them and maps to standard `AWS_*` internally.
+
+### 6 · Run the IAM bootstrap
+
+```bash
+npm run setup:aws:iam-all
+```
+
+The script (idempotent on the first 5 steps) creates:
+- Customer Managed Policy `fx-trade-opensearch-policy`
+- IAM Group `fx-trade-opensearch-deployers`
+- IAM User `fx-trade-opensearch-github-deployer`
+- Group membership
+- A fresh access-key pair for the deployer user
+
+The new keys are printed to your terminal. Copy them into **GitHub repo secrets** (Settings → Secrets and variables → Actions → New repository secret):
+
+| Secret name | Value |
+|---|---|
+| `AWS_ACCESS_KEY_ID`     | from script output |
+| `AWS_SECRET_ACCESS_KEY` | from script output |
+
+### 7 · Clean up
+
+```bash
+unset FX_TRADE_ANALYTICS_AWS_ACCESS_KEY FX_TRADE_ANALYTICS_AWS_SECRET
+```
+
+(Or just close the shell.) Optionally, in the AWS Console, **delete the access keys on `fx-bootstrap-admin`** (Security credentials tab → Actions → Delete) — you don't need them again unless you re-run the bootstrap (e.g. to update the policy or add another deployer).
+
+You're ready. Every workflow under `.github/workflows/` can now run.
+
+> 📖 Detailed walkthrough + troubleshooting in [`.github/aws/configs/README.md`](.github/aws/configs/README.md). Common terminology pitfalls (Roles vs Users, trust policy errors) covered there.
 
 ## Deployment modes
 
