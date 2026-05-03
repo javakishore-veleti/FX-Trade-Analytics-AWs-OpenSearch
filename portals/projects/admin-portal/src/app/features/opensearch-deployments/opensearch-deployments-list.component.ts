@@ -58,7 +58,7 @@ import { OpenSearchDeployment } from '../../shared/models/opensearch-deployment.
         </button>
       </header>
 
-      @if (loading() || syncing()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+      @if (loading() || syncing() || installing()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
 
       <div class="page-card__body">
         @if (!loading() && rows().length === 0) {
@@ -141,6 +141,14 @@ import { OpenSearchDeployment } from '../../shared/models/opensearch-deployment.
                         matTooltip="Re-sync this region">
                   <mat-icon>refresh</mat-icon>
                 </button>
+                <button mat-icon-button
+                        (click)="installDashboards(r)"
+                        [disabled]="installing() || !r.endpoint || r.status !== 'ACTIVE'"
+                        [matTooltip]="!r.endpoint ? 'Sync first to capture endpoint' :
+                                       (r.status !== 'ACTIVE' ? 'Deployment must be ACTIVE' :
+                                       'Install dashboard templates from codebase')">
+                  <mat-icon>auto_awesome</mat-icon>
+                </button>
               </td>
             </ng-container>
 
@@ -202,6 +210,7 @@ export class OpenSearchDeploymentsListComponent implements OnInit {
   rows = signal<OpenSearchDeployment[]>([]);
   loading = signal(false);
   syncing = signal(false);
+  installing = signal(false);
 
   activeCount = computed(() => this.rows().filter(r => r.status === 'ACTIVE').length);
   regionsCovered = computed(() => new Set(this.rows().map(r => r.region)).size);
@@ -257,6 +266,34 @@ export class OpenSearchDeploymentsListComponent implements OnInit {
       error: e => {
         this.syncing.set(false);
         this.snack.open(`Sync ${region} failed: ` + (e.error?.message ?? e.message), 'OK', { duration: 5000 });
+      },
+    });
+  }
+
+  installDashboards(d: OpenSearchDeployment) {
+    if (!confirm(`Install dashboard templates into ${d.deploymentName} (${d.region})?\n\nNote: AWS managed clusters require Fine-Grained Access Control (FGAC) to accept the import — without it the call will fail with anonymous-not-authorized.`)) {
+      return;
+    }
+    this.installing.set(true);
+    this.api.installDashboards(d.id).subscribe({
+      next: r => {
+        this.installing.set(false);
+        if (r.templatesSucceeded === r.templatesAttempted) {
+          this.snack.open(
+            `${d.deploymentName}: installed ${r.templatesSucceeded}/${r.templatesAttempted} template(s).`,
+            'OK', { duration: 4000 });
+        } else {
+          const failed = r.results.filter(t => !t.ok).map(t => `${t.template}: ${t.message}`).join('; ');
+          this.snack.open(
+            `${d.deploymentName}: ${r.templatesSucceeded}/${r.templatesAttempted} succeeded. Failed: ${failed}`,
+            'OK', { duration: 8000 });
+        }
+      },
+      error: e => {
+        this.installing.set(false);
+        this.snack.open(
+          `Install failed: ` + (e.error?.message ?? e.message),
+          'OK', { duration: 6000 });
       },
     });
   }

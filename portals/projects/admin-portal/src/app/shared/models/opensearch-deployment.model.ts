@@ -22,3 +22,17 @@ export interface OpenSearchSyncResult {
   deployments: OpenSearchDeployment[];
   errors: string[];
 }
+
+export interface DashboardTemplateResult {
+  template: string;
+  ok: boolean;
+  message: string;
+}
+
+export interface DashboardInstallResult {
+  deploymentId: number;
+  endpoint: string;
+  templatesAttempted: number;
+  templatesSucceeded: number;
+  results: DashboardTemplateResult[];
+}

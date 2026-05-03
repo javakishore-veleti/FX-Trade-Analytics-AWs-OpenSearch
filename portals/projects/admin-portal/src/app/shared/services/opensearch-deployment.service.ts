@@ -1,7 +1,11 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { OpenSearchDeployment, OpenSearchSyncResult } from '../models/opensearch-deployment.model';
+import {
+  DashboardInstallResult,
+  OpenSearchDeployment,
+  OpenSearchSyncResult,
+} from '../models/opensearch-deployment.model';
 
 @Injectable({ providedIn: 'root' })
 export class OpenSearchDeploymentService {
@@ -19,5 +23,9 @@ export class OpenSearchDeploymentService {
 
   syncAll(): Observable<OpenSearchSyncResult> {
     return this.http.post<OpenSearchSyncResult>(`${this.base}/sync-all`, null);
+  }
+
+  installDashboards(deploymentId: number): Observable<DashboardInstallResult> {
+    return this.http.post<DashboardInstallResult>(`${this.base}/${deploymentId}/install-dashboards`, null);
   }
 }
