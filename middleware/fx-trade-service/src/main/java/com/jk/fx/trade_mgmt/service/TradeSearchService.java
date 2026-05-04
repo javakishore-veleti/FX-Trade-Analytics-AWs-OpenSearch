@@ -165,6 +165,15 @@ public class TradeSearchService {
             log.debug("Search region={} risk={} → {} hits", region, risk, out.size());
             return out;
         } catch (Exception e) {
+            // Index doesn't exist yet (zero trades in this region — common on a fresh
+            // local OpenSearch before any trade has been placed). Return empty instead
+            // of 500 so the Recent Trades / Search Trades pages render an empty state.
+            String msg = e.getMessage() == null ? "" : e.getMessage();
+            if (msg.contains("index_not_found_exception") || msg.contains("no such index")) {
+                log.debug("Index {} doesn't exist yet for region {}; returning empty result set.",
+                        indexName, region);
+                return List.of();
+            }
             throw new RuntimeException(
                     "OpenSearch search failed for region " + region + " (index=" + indexName + ")", e);
         }
