@@ -36,3 +36,14 @@ export interface DashboardInstallResult {
   templatesSucceeded: number;
   results: DashboardTemplateResult[];
 }
+
+export interface RegionSyncStatus {
+  id: number;
+  region: string;
+  lastSyncedAt: string;        // ISO timestamp
+  lastStatus: string;          // 'OK' | 'ERROR'
+  managedCount: number;
+  serverlessCount: number;
+  deploymentsUpdated: number;
+  errorMessage?: string;
+}

@@ -1,0 +1,64 @@
+databaseChangeLog:
+  - changeSet:
+      id: 008-create-region-sync-status
+      author: fx-team
+      changes:
+        - createTable:
+            tableName: region_sync_status
+            remarks: 'Per-region last-sync metadata. One row per AWS region scanned by OpenSearchDeploymentService.syncRegion/syncAll — populated even when 0 deployments are discovered, so the UI can show every region with its last-sync timestamp and outcome.'
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: region
+                  type: VARCHAR(40)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_synced_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_status
+                  type: VARCHAR(20)
+                  remarks: 'OK | ERROR'
+                  constraints:
+                    nullable: false
+              - column:
+                  name: managed_count
+                  type: INT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: serverless_count
+                  type: INT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: deployments_updated
+                  type: INT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: error_message
+                  type: VARCHAR(1000)
+              - column:
+                  name: created_on
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_on
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: region_sync_status
+            columnNames: region
+            constraintName: uk_region_sync_status_region

@@ -1,6 +1,7 @@
 package com.jk.fx.trade_mgmt.masterdata.api;
 
 import com.jk.fx.trade_mgmt.masterdata.dto.OpenSearchDeploymentDTO;
+import com.jk.fx.trade_mgmt.masterdata.dto.RegionSyncStatusDTO;
 import com.jk.fx.trade_mgmt.masterdata.service.DashboardInstallService;
 import com.jk.fx.trade_mgmt.masterdata.service.DashboardInstallService.InstallResult;
 import com.jk.fx.trade_mgmt.masterdata.service.OpenSearchDeploymentService;
@@ -30,6 +31,12 @@ public class OpenSearchDeploymentController {
     @Operation(summary = "List all known deployments (DB read; does not call AWS).")
     public List<OpenSearchDeploymentDTO> list() {
         return service.list();
+    }
+
+    @GetMapping("/sync-status")
+    @Operation(summary = "Per-region last-sync metadata. One row per region scanned, even when 0 deployments were discovered.")
+    public List<RegionSyncStatusDTO> syncStatus() {
+        return service.listSyncStatus();
     }
 
     @PostMapping("/sync")

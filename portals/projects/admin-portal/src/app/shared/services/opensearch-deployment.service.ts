@@ -5,6 +5,7 @@ import {
   DashboardInstallResult,
   OpenSearchDeployment,
   OpenSearchSyncResult,
+  RegionSyncStatus,
 } from '../models/opensearch-deployment.model';
 
 @Injectable({ providedIn: 'root' })
@@ -14,6 +15,10 @@ export class OpenSearchDeploymentService {
 
   list(): Observable<OpenSearchDeployment[]> {
     return this.http.get<OpenSearchDeployment[]>(this.base);
+  }
+
+  syncStatus(): Observable<RegionSyncStatus[]> {
+    return this.http.get<RegionSyncStatus[]>(`${this.base}/sync-status`);
   }
 
   syncRegion(region: string): Observable<OpenSearchSyncResult> {

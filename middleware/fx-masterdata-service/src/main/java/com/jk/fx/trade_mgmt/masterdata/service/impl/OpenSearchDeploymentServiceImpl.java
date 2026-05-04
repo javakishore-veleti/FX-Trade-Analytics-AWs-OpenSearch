@@ -4,8 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jk.fx.trade_mgmt.masterdata.config.AwsClientsConfig.AwsProperties;
 import com.jk.fx.trade_mgmt.masterdata.dto.OpenSearchDeploymentDTO;
+import com.jk.fx.trade_mgmt.masterdata.dto.RegionSyncStatusDTO;
 import com.jk.fx.trade_mgmt.masterdata.entity.OpenSearchDeployment;
+import com.jk.fx.trade_mgmt.masterdata.entity.RegionSyncStatus;
 import com.jk.fx.trade_mgmt.masterdata.repository.OpenSearchDeploymentRepository;
+import com.jk.fx.trade_mgmt.masterdata.repository.RegionSyncStatusRepository;
 import com.jk.fx.trade_mgmt.masterdata.service.OpenSearchDeploymentService;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -39,6 +42,7 @@ public class OpenSearchDeploymentServiceImpl implements OpenSearchDeploymentServ
     private static final String TYPE_SERVERLESS   = "serverless";
 
     private final OpenSearchDeploymentRepository repo;
+    private final RegionSyncStatusRepository syncStatusRepo;
     private final AwsCredentialsProvider awsCredentials;
     private final AwsProperties awsProps;
     private final ObjectMapper jsonMapper;
@@ -48,6 +52,14 @@ public class OpenSearchDeploymentServiceImpl implements OpenSearchDeploymentServ
     public List<OpenSearchDeploymentDTO> list() {
         return repo.findAllByOrderByRegionAscDeploymentNameAsc().stream()
                 .map(e -> OpenSearchDeploymentDTO.of(e, e.getEndpoint()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RegionSyncStatusDTO> listSyncStatus() {
+        return syncStatusRepo.findAllByOrderByRegionAsc().stream()
+                .map(RegionSyncStatusDTO::of)
                 .toList();
     }
 
@@ -74,25 +86,30 @@ public class OpenSearchDeploymentServiceImpl implements OpenSearchDeploymentServ
         for (String regionCode : regions) {
             Set<String> seenManaged = new HashSet<>();
             Set<String> seenServerless = new HashSet<>();
+            int regionManaged = 0;
+            int regionServerless = 0;
+            List<String> regionErrors = new ArrayList<>();
 
             try {
-                int n = syncManagedDomains(regionCode, seenManaged);
-                discovered += n;
-                updated += n;
+                regionManaged = syncManagedDomains(regionCode, seenManaged);
+                discovered += regionManaged;
+                updated += regionManaged;
             } catch (Exception ex) {
                 String msg = "Managed domain sync failed for " + regionCode + ": " + ex.getMessage();
                 log.warn(msg, ex);
                 errors.add(msg);
+                regionErrors.add(msg);
             }
 
             try {
-                int n = syncServerlessCollections(regionCode, seenServerless);
-                discovered += n;
-                updated += n;
+                regionServerless = syncServerlessCollections(regionCode, seenServerless);
+                discovered += regionServerless;
+                updated += regionServerless;
             } catch (Exception ex) {
                 String msg = "Serverless sync failed for " + regionCode + ": " + ex.getMessage();
                 log.warn(msg, ex);
                 errors.add(msg);
+                regionErrors.add(msg);
             }
 
             // Mark stale rows INACTIVE — they were here before, AWS no longer reports them.
@@ -101,11 +118,40 @@ public class OpenSearchDeploymentServiceImpl implements OpenSearchDeploymentServ
             } catch (Exception ex) {
                 log.warn("Failed to mark stale rows inactive for region {}: {}", regionCode, ex.getMessage(), ex);
             }
+
+            // Persist per-region sync metadata, even when 0 deployments were
+            // discovered. The admin UI uses this to show every scanned region
+            // with its last-synced timestamp + outcome.
+            saveSyncStatus(regionCode, regionManaged, regionServerless, regionErrors);
         }
 
         log.info("Sync done: regions={} discovered={} updated={} markedInactive={} errors={}",
                 regions.size(), discovered, updated, markedInactive, errors.size());
         return new SyncResult(regions.size(), discovered, updated, markedInactive, list(), errors);
+    }
+
+    /** Upsert one row per region with the outcome of the just-completed sync. */
+    private void saveSyncStatus(String regionCode, int managedCount, int serverlessCount, List<String> regionErrors) {
+        try {
+            RegionSyncStatus row = syncStatusRepo.findByRegion(regionCode)
+                    .orElseGet(() -> RegionSyncStatus.builder().region(regionCode).build());
+            row.setLastSyncedAt(Instant.now());
+            row.setManagedCount(managedCount);
+            row.setServerlessCount(serverlessCount);
+            row.setDeploymentsUpdated(managedCount + serverlessCount);
+            if (regionErrors.isEmpty()) {
+                row.setLastStatus("OK");
+                row.setErrorMessage(null);
+            } else {
+                row.setLastStatus("ERROR");
+                String joined = String.join("; ", regionErrors);
+                row.setErrorMessage(joined.length() > 1000 ? joined.substring(0, 1000) : joined);
+            }
+            syncStatusRepo.save(row);
+        } catch (Exception ex) {
+            // Sync-status persistence is metadata; never fail the sync over it.
+            log.warn("Failed to persist region_sync_status for region {}: {}", regionCode, ex.getMessage(), ex);
+        }
     }
 
     /** AWS managed OpenSearch domains in the given region. */

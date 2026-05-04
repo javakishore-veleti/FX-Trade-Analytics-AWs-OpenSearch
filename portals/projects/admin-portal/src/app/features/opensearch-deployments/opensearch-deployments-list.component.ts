@@ -9,7 +9,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
 import { OpenSearchDeploymentService } from '../../shared/services/opensearch-deployment.service';
-import { OpenSearchDeployment } from '../../shared/models/opensearch-deployment.model';
+import { OpenSearchDeployment, RegionSyncStatus } from '../../shared/models/opensearch-deployment.model';
 
 @Component({
   selector: 'app-opensearch-deployments-list',
@@ -65,7 +65,45 @@ import { OpenSearchDeployment } from '../../shared/models/opensearch-deployment.
           <div class="empty">
             <mat-icon>cloud_off</mat-icon>
             <h3>No deployments tracked yet</h3>
-            <p>Click <strong>Sync all regions</strong> to discover AWS OpenSearch domains and collections in the regions configured under <code>fx.aws.regions</code>.</p>
+            @if (syncStatus().length === 0) {
+              <p>Click <strong>Sync all regions</strong> to discover AWS OpenSearch domains and collections in the regions configured under <code>fx.aws.regions</code>.</p>
+            } @else {
+              <p>Last sync scanned <strong>{{ syncStatus().length }} region(s)</strong> and found <strong>0 deployments</strong>. Per-region results below — provision a domain via the GitHub Actions <code>004-AWS-Setup-Region-OpenSearch</code> workflow, then click <strong>Sync all regions</strong> again.</p>
+              <table mat-table [dataSource]="syncStatus()" class="sync-status-table">
+                <ng-container matColumnDef="region">
+                  <th mat-header-cell *matHeaderCellDef>Region</th>
+                  <td mat-cell *matCellDef="let s"><span class="code-badge">{{ s.region }}</span></td>
+                </ng-container>
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef>Status</th>
+                  <td mat-cell *matCellDef="let s">
+                    <span class="pill" [class.pill--ok]="s.lastStatus === 'OK'" [class.pill--warn]="s.lastStatus === 'ERROR'">
+                      {{ s.lastStatus }}
+                    </span>
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="counts">
+                  <th mat-header-cell *matHeaderCellDef style="text-align: right">Discovered</th>
+                  <td mat-cell *matCellDef="let s" style="text-align: right" class="num">
+                    {{ s.managedCount }} managed · {{ s.serverlessCount }} serverless
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="lastSynced">
+                  <th mat-header-cell *matHeaderCellDef>Last synced</th>
+                  <td mat-cell *matCellDef="let s" class="cell-time">
+                    {{ s.lastSyncedAt | date:'medium' }}
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="error">
+                  <th mat-header-cell *matHeaderCellDef>Error</th>
+                  <td mat-cell *matCellDef="let s" class="cell-error">
+                    {{ s.errorMessage || '—' }}
+                  </td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="syncStatusCols"></tr>
+                <tr mat-row *matRowDef="let row; columns: syncStatusCols"></tr>
+              </table>
+            }
           </div>
         }
 
@@ -200,6 +238,29 @@ import { OpenSearchDeployment } from '../../shared/models/opensearch-deployment.
       background: #FEF3C7;
       color: #92400E;
     }
+    .sync-status-table {
+      width: 100%;
+      max-width: 920px;
+      margin: 24px auto 0 auto;
+      text-align: left;
+    }
+    .sync-status-table th {
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .sync-status-table .num { font-family: 'SF Mono', 'Menlo', monospace; font-variant-numeric: tabular-nums; font-size: 12px; }
+    .sync-status-table .cell-error {
+      max-width: 240px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+      color: #92400E;
+    }
+    .empty .sync-status-table mat-cell,
+    .empty .sync-status-table mat-header-cell { text-align: left; }
   `],
 })
 export class OpenSearchDeploymentsListComponent implements OnInit {
@@ -208,9 +269,12 @@ export class OpenSearchDeploymentsListComponent implements OnInit {
 
   displayed = ['deploymentName', 'region', 'provisionType', 'status', 'syncedOn', 'actions'];
   rows = signal<OpenSearchDeployment[]>([]);
+  syncStatus = signal<RegionSyncStatus[]>([]);
   loading = signal(false);
   syncing = signal(false);
   installing = signal(false);
+
+  syncStatusCols = ['region', 'status', 'counts', 'lastSynced', 'error'];
 
   activeCount = computed(() => this.rows().filter(r => r.status === 'ACTIVE').length);
   regionsCovered = computed(() => new Set(this.rows().map(r => r.region)).size);
@@ -232,6 +296,10 @@ export class OpenSearchDeploymentsListComponent implements OnInit {
         this.loading.set(false);
       },
     });
+    this.api.syncStatus().subscribe({
+      next: rows => this.syncStatus.set(rows),
+      error: () => { /* sync status is supplementary; don't block on its failure */ },
+    });
   }
 
   syncAll() {
@@ -239,10 +307,15 @@ export class OpenSearchDeploymentsListComponent implements OnInit {
     this.api.syncAll().subscribe({
       next: r => {
         this.syncing.set(false);
-        const errs = r.errors?.length ? ` (${r.errors.length} error${r.errors.length === 1 ? '' : 's'})` : '';
-        this.snack.open(
-          `Scanned ${r.regionsScanned} region(s); discovered ${r.deploymentsDiscovered}; updated ${r.updated}${errs}`,
-          'OK', { duration: 4000 });
+        // When deployments were discovered, briefly snackbar — useful confirmation.
+        // When zero, suppress: the empty-state box now renders the per-region sync
+        // status table inline, which is richer than a transient snackbar.
+        if (r.deploymentsDiscovered > 0) {
+          const errs = r.errors?.length ? ` (${r.errors.length} error${r.errors.length === 1 ? '' : 's'})` : '';
+          this.snack.open(
+            `Scanned ${r.regionsScanned} region(s); discovered ${r.deploymentsDiscovered}; updated ${r.updated}${errs}`,
+            'OK', { duration: 4000 });
+        }
         this.load();
       },
       error: e => {

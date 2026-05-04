@@ -13,3 +13,5 @@ databaseChangeLog:
       file: db/changelog/changes/006-create-opensearch-deployments.yaml
   - include:
       file: db/changelog/changes/007-add-endpoint-to-opensearch-deployments.yaml
+  - include:
+      file: db/changelog/changes/008-create-region-sync-status.yaml
