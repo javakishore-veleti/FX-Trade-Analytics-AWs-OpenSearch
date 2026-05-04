@@ -1,0 +1,22 @@
+databaseChangeLog:
+  - changeSet:
+      id: 009-seed-trade-books
+      author: fx-team
+      remarks: 'Seeds 12 trade books spread across all 8 demo regions so the admin Trade Books page is populated on first start. SQL inserts (not loadData CSV) because trade_book has non-null created_at/updated_at audit columns and CSV loadData has no convenient way to populate CURRENT_TIMESTAMP.'
+      changes:
+        - sql:
+            stripComments: true
+            sql: |
+              INSERT INTO trade_book (code, name, description, region, owner, active, created_at, updated_at) VALUES
+                ('NY-FX-MAJORS',     'NY FX Majors',           'Major G7 pairs traded out of New York',                'us-east-1',      'NY-Desk',           TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('NY-FX-EXOTICS',    'NY FX Exotics',          'Emerging market and exotic pairs (NY)',                'us-east-1',      'NY-EM-Desk',        TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('PDX-FX-G7',        'Portland G7',            'G7 currency pairs from the Portland desk',             'us-west-2',      'PDX-Desk',          TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('SAO-LATAM-FX',     'São Paulo LatAm FX',     'BRL/MXN/CLP and broader LatAm FX',                     'sa-east-1',      'SAO-LatAm-Desk',    TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('LDN-FX-EUR',       'London EUR Book',        'EUR-quoted majors (EUR/USD, EUR/GBP, EUR/JPY)',        'eu-west-2',      'LDN-EUR-Desk',      TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('LDN-FX-GBP',       'London GBP Book',        'GBP-quoted pairs and Cable',                            'eu-west-2',      'LDN-GBP-Desk',      TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('FRA-EUR-CARRY',    'Frankfurt EUR Carry',    'EUR-funded carry trades',                              'eu-central-1',   'FRA-Carry-Desk',    TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('MUM-EM-ASIA',      'Mumbai EM Asia',         'INR and broader emerging-market Asia',                 'ap-south-1',     'MUM-EM-Desk',       TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('SGP-APAC-MAJORS',  'Singapore APAC Majors',  'AUD/JPY/SGD pairs from the Singapore desk',            'ap-southeast-1', 'SGP-Desk',          TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('TKY-JPY-CARRY',    'Tokyo JPY Carry',        'JPY-funded carry strategies',                          'ap-northeast-1', 'TKY-Carry-Desk',    TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('NY-FX-CRYPTO',     'NY Crypto FX',           'BTC/ETH crosses with major FX (experimental)',         'us-east-1',      'NY-Crypto-Desk',    FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                ('LDN-COMMOD-FX',    'London Commodity FX',    'AUD/CAD/NOK paired with commodity baskets',            'eu-west-2',      'LDN-Commod-Desk',   TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
