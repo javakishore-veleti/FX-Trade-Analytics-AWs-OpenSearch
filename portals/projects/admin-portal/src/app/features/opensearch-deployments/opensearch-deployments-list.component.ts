@@ -68,17 +68,25 @@ import { OpenSearchDeployment, RegionSyncStatus } from '../../shared/models/open
             @if (syncStatus().length === 0) {
               <p>Click <strong>Sync all regions</strong> to discover AWS OpenSearch domains and collections in the regions configured under <code>fx.aws.regions</code>.</p>
             } @else {
-              <p>Last sync scanned <strong>{{ syncStatus().length }} region(s)</strong> and found <strong>0 deployments</strong>. Per-region results below — provision a domain via the GitHub Actions <code>004-AWS-Setup-Region-OpenSearch</code> workflow, then click <strong>Sync all regions</strong> again.</p>
+              <p>Last sync scanned <strong>{{ syncStatus().length }} region(s)</strong> and found <strong>0 deployments</strong>. The <strong>AWS scan</strong> column below shows that masterdata could reach the AWS API in each region — there's just nothing currently provisioned there. Provision a domain via the GitHub Actions <code>004-AWS-Setup-Region-OpenSearch</code> workflow, then click <strong>Sync all regions</strong> again.</p>
               <table mat-table [dataSource]="syncStatus()" class="sync-status-table">
                 <ng-container matColumnDef="region">
                   <th mat-header-cell *matHeaderCellDef>Region</th>
                   <td mat-cell *matCellDef="let s"><span class="code-badge">{{ s.region }}</span></td>
                 </ng-container>
                 <ng-container matColumnDef="status">
-                  <th mat-header-cell *matHeaderCellDef>Status</th>
+                  <th mat-header-cell *matHeaderCellDef
+                      matTooltip="Result of the most recent AWS API call. Reachable = AWS returned successfully (even if zero deployments). Failed = the API call errored.">
+                    AWS scan
+                  </th>
                   <td mat-cell *matCellDef="let s">
-                    <span class="pill" [class.pill--ok]="s.lastStatus === 'OK'" [class.pill--warn]="s.lastStatus === 'ERROR'">
-                      {{ s.lastStatus }}
+                    <span class="pill"
+                          [class.pill--ok]="s.lastStatus === 'OK'"
+                          [class.pill--warn]="s.lastStatus === 'ERROR'"
+                          [matTooltip]="s.lastStatus === 'OK'
+                            ? 'AWS API reachable. Zero discovered = no domains/collections currently provisioned in this region.'
+                            : 'AWS API call failed. See Error column.'">
+                      {{ s.lastStatus === 'OK' ? '✓ Reachable' : '✗ Failed' }}
                     </span>
                   </td>
                 </ng-container>
