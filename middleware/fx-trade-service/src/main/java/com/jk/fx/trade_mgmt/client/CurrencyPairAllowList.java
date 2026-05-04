@@ -1,6 +1,7 @@
 package com.jk.fx.trade_mgmt.client;
 
 import jakarta.annotation.PostConstruct;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -43,7 +44,12 @@ public class CurrencyPairAllowList {
 
     public synchronized void refresh() {
         try {
-            var pairs = client.fetchActiveCurrencyPairs();
+            // Explicit type instead of `var` — some IDE Java tooling defaults to
+            // source=8 and can't parse `var` even though Maven uses Java 17.
+            // The IDE drops a 'bad class' into target/classes that throws
+            // 'Unresolved compilation problem' at runtime; using the explicit
+            // type avoids this whole class of problem.
+            List<MasterDataClient.CurrencyPairView> pairs = client.fetchActiveCurrencyPairs();
             allowed.clear();
             pairs.forEach(p -> allowed.add(key(p.getFromCurrency(), p.getToCurrency())));
             lastRefreshSucceeded = true;
