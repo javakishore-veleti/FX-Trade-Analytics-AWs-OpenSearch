@@ -42,8 +42,14 @@ dist/
 
 # IDE
 .idea/
-.vscode/
 *.iml
+
+# VSCode — ignore all .vscode/* by default, but commit project-shared
+# settings (Java JDK pin, recommended extensions). Personal files like
+# launch.json + tasks.json + .ropeproject stay user-local.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 
 # OS
 .DS_Store

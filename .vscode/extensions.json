@@ -1,0 +1,22 @@
+{
+  // Recommended VSCode extensions for this repo. When you open the project
+  // in VSCode, it'll prompt to install any missing ones.
+  "recommendations": [
+    // Java — Spring Boot services + Maven build
+    "vscjava.vscode-java-pack",
+    "vscjava.vscode-spring-boot-dashboard",
+    "pivotal.vscode-spring-boot",
+
+    // Angular — both portals
+    "angular.ng-template",
+
+    // YAML — workflows + Helm + application.yml
+    "redhat.vscode-yaml",
+
+    // Helm chart syntax
+    "tim-koehler.helm-intellisense",
+
+    // GitHub Actions schema/syntax
+    "github.vscode-github-actions"
+  ]
+}

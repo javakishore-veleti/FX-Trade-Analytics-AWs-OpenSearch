@@ -1,0 +1,53 @@
+{
+  // ─────────────────────────────────────────────────────────────────────
+  // VSCode Java Language Server config for this repo. Committed so anyone
+  // who clones gets the right setup automatically.
+  //
+  // Why this file exists: VSCode's "Language Support for Java" extension
+  // has its OWN compiler (separate from the JVM you run with, separate
+  // from Maven). If left to its own defaults it can pick a stale source
+  // level, drop a 'bad class' into target/classes, and Maven will then
+  // happily run that bad class from spring-boot:run because target/ looks
+  // newer than source. Symptom: 'java.lang.Error: Unresolved compilation
+  // problem: var cannot be resolved to a type' or similar. The pin
+  // below forces the extension onto JDK 21 (Temurin LTS) which matches
+  // what mvn uses, and tells it to honour Maven's <source>/<target>.
+  // ─────────────────────────────────────────────────────────────────────
+
+  // Force the Java extension to use Temurin 21 — the same JVM the project
+  // runs with at runtime. macOS Homebrew/Temurin default install path.
+  // On Linux/Windows, override this in your USER settings (Cmd+Shift+P
+  // → 'Preferences: Open User Settings (JSON)') with your local JDK path.
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home",
+      "default": true
+    }
+  ],
+
+  // Honour Maven's <source>/<target> from middleware-parent pom (Java 17)
+  // for compilation. Belt-and-suspenders with the runtime pin above.
+  "java.import.maven.enabled": true,
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.compile.nullAnalysis.mode": "automatic",
+
+  // Download attached sources/javadocs for dependencies — useful for
+  // jumping into Spring Boot / Kafka client code.
+  "java.eclipse.downloadSources": true,
+  "java.maven.downloadSources": true,
+
+  // Hide noisy build artefacts from the Explorer pane. They're rebuildable
+  // and just clutter the tree. Won't affect git ignore.
+  "files.exclude": {
+    "**/target": true,
+    "**/.angular": true,
+    "**/dist": true
+  },
+  "search.exclude": {
+    "**/target": true,
+    "**/.angular": true,
+    "**/dist": true,
+    "**/node_modules": true
+  }
+}
