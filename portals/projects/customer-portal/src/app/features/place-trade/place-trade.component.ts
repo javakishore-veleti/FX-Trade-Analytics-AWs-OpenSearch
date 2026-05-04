@@ -11,7 +11,9 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CurrencyPairService } from '../../shared/services/currency-pair.service';
 import { TradeService } from '../../shared/services/trade.service';
 import { RegionConfigService } from '../../shared/services/region-config.service';
+import { TradeBookService } from '../../shared/services/trade-book.service';
 import { CurrencyPair } from '../../shared/models/currency-pair.model';
+import { TradeBook } from '../../shared/models/trade-book.model';
 
 @Component({
   selector: 'app-place-trade',
@@ -335,6 +337,7 @@ export class PlaceTradeComponent implements OnInit {
   private pairs = inject(CurrencyPairService);
   private trades = inject(TradeService);
   private regionConfig = inject(RegionConfigService);
+  private bookService = inject(TradeBookService);
   private snack = inject(MatSnackBar);
 
   // Friendly labels for known AWS regions; unknown codes show the code itself.
@@ -364,6 +367,18 @@ export class PlaceTradeComponent implements OnInit {
   /** Region → backend URL map fetched from /api/config/regions. */
   regions = signal<Record<string, string>>({});
   regionCodes = computed(() => Object.keys(this.regions()));
+
+  /** All active trade books, fetched once from masterdata. */
+  allBooks = signal<TradeBook[]>([]);
+  /** Map: region → list of ACTIVE books in that region (precomputed for fast lookup). */
+  booksByRegion = computed(() => {
+    const map: Record<string, TradeBook[]> = {};
+    for (const b of this.allBooks()) {
+      if (!b.active || !b.region) continue;
+      (map[b.region] ??= []).push(b);
+    }
+    return map;
+  });
 
   form = this.fb.group({
     pairId: [null as number | null, Validators.required],
@@ -402,8 +417,32 @@ export class PlaceTradeComponent implements OnInit {
       if (codes.length && !this.form.value.region) {
         this.form.patchValue({ region: codes[0] });
         this.currentRegionUrl.set(map[codes[0]] ?? '');
+        // After region default, also default the trader book if books are loaded
+        this.assignDefaultBookForRegion(codes[0]);
       }
     });
+
+    this.bookService.listAll().subscribe({
+      next: bs => {
+        this.allBooks.set(bs);
+        // Books arrived after region was already set — backfill the book default now
+        const r = this.form.value.region;
+        if (r) this.assignDefaultBookForRegion(r);
+      },
+      error: () => { /* keep traderBook field's default if masterdata is unavailable */ },
+    });
+  }
+
+  /**
+   * Picks the first ACTIVE book whose region matches and writes its code into
+   * form.traderBook. No-op if there are no books for that region (the field
+   * keeps whatever the user had typed, or the original default).
+   */
+  private assignDefaultBookForRegion(region: string): void {
+    const candidates = this.booksByRegion()[region] ?? [];
+    if (candidates.length > 0) {
+      this.form.patchValue({ traderBook: candidates[0].code });
+    }
   }
 
   selectPair(p: CurrencyPair) {
@@ -412,6 +451,7 @@ export class PlaceTradeComponent implements OnInit {
 
   onRegionChange(region: string) {
     this.currentRegionUrl.set(this.regions()[region] ?? '');
+    this.assignDefaultBookForRegion(region);
   }
 
   regionLabel(code: string): string {
@@ -483,13 +523,22 @@ export class PlaceTradeComponent implements OnInit {
       const fromAmount = Math.round((50 + Math.random() * 9950) * 100) / 100;
       const rate = Math.round((0.5 + Math.random() * 100) * 10000) / 10000;
 
+      // Pick a book that lives in THIS region. If multiple, round-robin
+      // through them so demo data is spread across books too. Falls back
+      // to a generic 'DEMO-{n}' string if masterdata had no books for the
+      // region (shouldn't happen with the seeded set, but defensive).
+      const regionBooks = this.booksByRegion()[region] ?? [];
+      const book = regionBooks.length > 0
+        ? regionBooks[i % regionBooks.length].code
+        : 'DEMO-' + (1 + (i % 3));
+
       this.trades.place({
         fromCurrency: pair.fromCurrency,
         toCurrency: pair.toCurrency,
         fromAmount,
         rate,
         region,
-        traderBook: 'DEMO-' + (1 + (i % 3)),
+        traderBook: book,
       }, baseUrl).subscribe({
         next: r => {
           if (r.accepted) succeeded++; else rejected++;

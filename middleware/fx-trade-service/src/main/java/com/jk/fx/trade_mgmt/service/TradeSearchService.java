@@ -50,19 +50,30 @@ public class TradeSearchService {
      * tests. Targets the {@link #defaultRegion()} backend.
      */
     public String searchByRisk(String risk) {
-        List<Map<String, Object>> hits = search(risk, defaultRegion(), 50);
+        List<Map<String, Object>> hits = search(risk, defaultRegion(), null, 50);
         return "Found " + hits.size() + " trade(s) with riskLevel=" + risk;
     }
 
     /**
      * Single-region search. {@code region} drives BOTH which OpenSearch
      * domain to hit AND which index to query ({@code fx-trades-{region}}).
+     * Optional {@code traderBook} narrows to one trading book.
      */
-    public List<Map<String, Object>> search(String risk, String region, int size) {
+    public List<Map<String, Object>> search(String risk, String region, String traderBook, int size) {
         if (region == null || region.isBlank()) {
             region = defaultRegion();
         }
-        return searchOneRegion(risk, region, size);
+        return searchOneRegion(risk, traderBook, region, size);
+    }
+
+    /** Backward-compatible 3-arg overload for callers that don't filter by trader book. */
+    public List<Map<String, Object>> search(String risk, String region, int size) {
+        return search(risk, region, null, size);
+    }
+
+    /** Backward-compatible 3-arg overload that doesn't filter by trader book. */
+    public List<Map<String, Object>> searchMulti(String risk, List<String> regions, int size) {
+        return searchMulti(risk, regions, null, size);
     }
 
     /**
@@ -70,9 +81,10 @@ public class TradeSearchService {
      * configured backend if the list is null/empty), merges the hits, sorts
      * by {@code timestamp} desc across the merged set, truncates to
      * {@code size}. Each hit's {@code region} field is preserved so the UI
-     * can display "from which region it came from" per row.
+     * can display "from which region it came from" per row. Optional
+     * {@code traderBook} narrows results to one trading book.
      */
-    public List<Map<String, Object>> searchMulti(String risk, List<String> regions, int size) {
+    public List<Map<String, Object>> searchMulti(String risk, List<String> regions, String traderBook, int size) {
         List<String> targetRegions = (regions == null || regions.isEmpty())
                 ? configuredRegions()
                 : regions.stream()
@@ -92,7 +104,7 @@ public class TradeSearchService {
 
         for (String region : targetRegions) {
             try {
-                List<Map<String, Object>> hits = searchOneRegion(risk, region, perRegionSize);
+                List<Map<String, Object>> hits = searchOneRegion(risk, traderBook, region, perRegionSize);
                 // Defensive: ensure each hit carries its region for UI display
                 // even on indices where the field somehow isn't present.
                 for (Map<String, Object> h : hits) {
@@ -125,7 +137,7 @@ public class TradeSearchService {
         return merged;
     }
 
-    private List<Map<String, Object>> searchOneRegion(String risk, String region, int size) {
+    private List<Map<String, Object>> searchOneRegion(String risk, String traderBook, String region, int size) {
         final String indexName = "fx-trades-" + region;
         final int safeSize = Math.min(Math.max(size, 1), 200);
 
@@ -138,6 +150,12 @@ public class TradeSearchService {
                 mustClauses.add(Query.of(q -> q.term(t -> t
                         .field("riskLevel")
                         .value(FieldValue.of(riskUp)))));
+            }
+            if (traderBook != null && !traderBook.isBlank()) {
+                final String bookValue = traderBook.trim();
+                mustClauses.add(Query.of(q -> q.term(t -> t
+                        .field("traderBook")
+                        .value(FieldValue.of(bookValue)))));
             }
 
             SearchResponse<Map> resp = client.search(s -> s

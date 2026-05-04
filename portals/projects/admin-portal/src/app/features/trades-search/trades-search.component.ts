@@ -13,7 +13,9 @@ import { MatRadioModule } from '@angular/material/radio';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { TradeSearchService, SearchMode } from '../../shared/services/trade-search.service';
 import { OpenSearchDeploymentService } from '../../shared/services/opensearch-deployment.service';
+import { TradeBookService } from '../../shared/services/trade-book.service';
 import { Trade } from '../../shared/models/trade.model';
+import { TradeBook } from '../../shared/models/trade-book.model';
 
 @Component({
   selector: 'app-trades-search',
@@ -66,6 +68,17 @@ import { Trade } from '../../shared/models/trade.model';
               <mat-option value="MEDIUM">MEDIUM</mat-option>
               <mat-option value="HIGH">HIGH</mat-option>
             </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Trader book (optional)</mat-label>
+            <mat-select formControlName="traderBook">
+              <mat-option [value]="''">— Any —</mat-option>
+              @for (b of tradeBooks(); track b.code) {
+                <mat-option [value]="b.code">{{ b.code }} ({{ b.region }})</mat-option>
+              }
+            </mat-select>
+            <mat-hint>Filters results to one trading book</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -231,6 +244,7 @@ export class TradesSearchComponent implements OnInit {
   private fb = inject(FormBuilder);
   private api = inject(TradeSearchService);
   private deployments = inject(OpenSearchDeploymentService);
+  private books = inject(TradeBookService);
   private snack = inject(MatSnackBar);
 
   displayed = ['region', 'tradeId', 'pair', 'amount', 'rate', 'risk', 'book', 'timestamp'];
@@ -239,11 +253,13 @@ export class TradesSearchComponent implements OnInit {
   loading = signal(false);
   hasSearched = signal(false);
   availableRegions = signal<string[]>([]);
+  tradeBooks = signal<TradeBook[]>([]);
 
   form = this.fb.group({
     mode: ['cross-region' as SearchMode, Validators.required],
     regionsInput: [''],
     risk: [''],
+    traderBook: [''],
     size: [50, [Validators.required, Validators.min(1), Validators.max(200)]],
   });
 
@@ -270,6 +286,10 @@ export class TradesSearchComponent implements OnInit {
       },
       error: () => { /* dropdown empty + hint will explain */ },
     });
+    this.books.listAll().subscribe({
+      next: bs => this.tradeBooks.set(bs),
+      error: () => { /* trader-book filter just stays empty if masterdata is unavailable */ },
+    });
   }
 
   run() {
@@ -286,6 +306,7 @@ export class TradesSearchComponent implements OnInit {
       mode: v.mode!,
       regions,
       risk: v.risk || undefined,
+      traderBook: v.traderBook || undefined,
       size: v.size ?? 50,
     }).subscribe({
       next: rows => {

@@ -41,6 +41,7 @@ public class TradeSearchController {
             @RequestParam(required = false) String risk,
             @RequestParam(required = false) String region,
             @RequestParam(required = false) String regions,
+            @RequestParam(required = false) String traderBook,
             @RequestParam(required = false, defaultValue = "false") boolean crossRegion,
             @RequestParam(defaultValue = "50") int size) {
 
@@ -48,8 +49,8 @@ public class TradeSearchController {
             List<String> list = (regions == null || regions.isBlank())
                     ? List.of()
                     : Arrays.stream(regions.split(",")).map(String::trim).toList();
-            return service.searchMulti(risk, list, size);
+            return service.searchMulti(risk, list, traderBook, size);
         }
-        return service.search(risk, region, size);
+        return service.search(risk, region, traderBook, size);
     }
 }

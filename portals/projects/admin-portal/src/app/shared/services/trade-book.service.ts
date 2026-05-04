@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { TradeBook } from '../models/trade-book.model';
 import { PageResponse } from '../models/page-response.model';
 
@@ -13,6 +13,11 @@ export class TradeBookService {
     let params = new HttpParams().set('page', page).set('size', size);
     if (sort) params = params.set('sort', sort);
     return this.http.get<PageResponse<TradeBook>>(this.base, { params });
+  }
+
+  /** Convenience: fetch every book in one call (paginated under the hood). 200 is plenty for masterdata. */
+  listAll(): Observable<TradeBook[]> {
+    return this.list(0, 200, 'region,asc').pipe(map(r => r.content ?? []));
   }
 
   get(id: number): Observable<TradeBook> {

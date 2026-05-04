@@ -12,6 +12,8 @@ export interface SearchOptions {
   /** Comma-separated list when mode === 'specific-regions' (1+ regions). */
   regions?: string[];
   risk?: string;
+  /** Filter to a specific trading book (matched against the trade's traderBook field). */
+  traderBook?: string;
   size?: number;
 }
 
@@ -30,6 +32,7 @@ export class TradeSearchService {
       params = params.set('region', opts.region);
     }
     if (opts.risk) params = params.set('risk', opts.risk);
+    if (opts.traderBook) params = params.set('traderBook', opts.traderBook);
     if (opts.size) params = params.set('size', String(opts.size));
     return this.http.get<Trade[]>(this.base, { params });
   }
