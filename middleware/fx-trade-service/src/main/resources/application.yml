@@ -56,6 +56,7 @@ fx:
       us-east-1: http://localhost:9080
       eu-west-2: http://localhost:9080
       ap-south-1: http://localhost:9080
+      us-west-2: http://localhost:9080
   cors:
     allowed-origins:
       - http://localhost:4200
