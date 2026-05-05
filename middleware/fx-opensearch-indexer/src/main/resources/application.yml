@@ -24,7 +24,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: prometheus
+        include: prometheus,health
   endpoint:
     prometheus:
       enabled: true
@@ -54,9 +54,12 @@ fx:
         provider: local
         endpoint: http://localhost:9200
       # Examples for the AWS-OpenSearch-from-laptop story:
-      # - region: us-east-1
-      #   provider: aws
-      #   endpoint: https://fxs-dev-us-east-1-XXXXXX.us-east-1.es.amazonaws.com
-      # - region: eu-west-2
-      #   provider: aws
-      #   endpoint: https://fxs-dev-eu-west-2-YYYYYY.eu-west-2.es.amazonaws.com
+      - region: us-east-1
+        provider: aws
+        endpoint: https://search-fxs-dev-us-east-1-2fajx3mtcqdj7yubfkyvje4xqa.us-east-1.es.amazonaws.com
+      - region: eu-west-2
+        provider: aws
+        endpoint: https://fxs-dev-eu-west-2-YYYYYY.eu-west-2.es.amazonaws.com
+      - region: us-west-2
+        provider: aws
+        endpoint: https://search-fxs-dev-us-west-2-25wlaaafzhspc7yjmocbfbyaka.us-west-2.es.amazonaws.com
